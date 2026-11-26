@@ -18,6 +18,12 @@ input,textarea{width:100%;padding:.65rem;border:1px solid #79948d;border-radius:
 textarea{min-height:5rem}
 button{min-height:44px;padding:.55rem .9rem;margin:.5rem .25rem 0 0;border:0;border-radius:.4rem;background:#125e53;color:white}
 button[aria-pressed=true]{background:#173632}
+a{color:#125e53;overflow-wrap:anywhere}
+#gorev-listesi{display:grid;gap:.8rem;padding:0;list-style:none}
+#gorev-listesi li{border:1px solid #d1e0dc;border-radius:.6rem;padding:.65rem;overflow-wrap:anywhere}
+#gorev-listesi p{margin:.3rem 0}
+#gorev-listesi strong{display:block}
+#gorev-listesi details{margin:.2rem 0;padding:0}
 iframe{width:100%;height:80vh;border:1px solid #79948d;border-radius:.7rem;background:#fff;margin-top:.75rem}
 #durum:empty{display:none}
 </style>
@@ -29,9 +35,14 @@ iframe{width:100%;height:80vh;border:1px solid #79948d;border-radius:.7rem;backg
 
 <section>
 <h2>Müşteri sunumu</h2>
-<label for="paket">Actions çıktısından çıkarılan .ajans dosyası</label>
-<input id="paket" type="file" accept=".ajans">
+<label for="paket">GitHub Actions ZIP çıktısı veya .ajans dosyası</label>
+<input id="paket" type="file" accept=".ajans,.zip,application/zip">
 <button id="ac">Paketi aç</button>
+<p><a href="https://github.com/emre5528/AI-Dijital-Ajans/actions/workflows/mobil.yml" target="_blank" rel="noopener noreferrer">Özel GitHub çalıştırmalarını aç</a></p>
+</section>
+<section id="gorevler" hidden>
+<h2>Görev geçmişi</h2>
+<ul id="gorev-listesi"></ul>
 </section>
 <section id="gosterim" hidden>
 <nav id="sayfalar" aria-label="Sunum ve demolar"></nav>
@@ -64,6 +75,7 @@ iframe{width:100%;height:80vh;border:1px solid #79948d;border-radius:.7rem;backg
 <label for="kod">Actions → Ajans Mobil → sifreli-talep → paket</label>
 <textarea id="kod" readonly spellcheck="false"></textarea>
 <button id="kopyala">Kodu kopyala</button>
+<p><a href="https://github.com/emre5528/AI-Dijital-Ajans/actions/workflows/mobil.yml" target="_blank" rel="noopener noreferrer">GitHub’da görevi başlat</a></p>
 </section>
 <p id="durum" role="status"></p>
 </main>
@@ -73,6 +85,14 @@ const eleman = id => document.getElementById(id);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", {fatal: true});
 const cerceve = eleman("cerceve");
+const paketSiniri = 10 * 1024 * 1024;
+const zipSiniri = paketSiniri + 1024 * 1024;
+const durumlar = {
+    olusturuldu: "Oluşturuldu", sirada: "Sırada", calisiyor: "Çalışıyor",
+    tamamlandi: "Tamamlandı", basarisiz: "Başarısız", kismen_tamamlandi: "Kısmen tamamlandı",
+    bekliyor: "Bekliyor", atlandi: "Atlandı", claude_bekliyor: "Uzman bekliyor",
+    devam_ediyor: "Devam ediyor", yeni: "Yeni"
+};
 
 function parola() {
     const deger = eleman("parola").value;
@@ -115,10 +135,139 @@ async function paketAc(paket, deger) {
     return JSON.parse(decoder.decode(sonuc));
 }
 
+async function zipPaketiOku(baytlar) {
+    const hata = () => new Error("ZIP geçersiz. Yalnızca Ajans Mobil çalıştırmasının özgün ZIP çıktısını seçin.");
+    const gorunum = new DataView(baytlar.buffer, baytlar.byteOffset, baytlar.byteLength);
+    const u16 = konum => gorunum.getUint16(konum, true);
+    const u32 = konum => gorunum.getUint32(konum, true);
+    let son = baytlar.length - 22;
+    const enErken = Math.max(0, son - 65535);
+    while (son >= enErken && (u32(son) !== 0x06054b50 || son + 22 + u16(son + 20) !== baytlar.length)) son--;
+    if (son < enErken || u16(son + 4) || u16(son + 6) || u16(son + 8) !== 1 || u16(son + 10) !== 1) throw hata();
+
+    const merkezBoyut = u32(son + 12);
+    const merkez = u32(son + 16);
+    if (merkezBoyut < 46 || merkez + merkezBoyut !== son || u32(merkez) !== 0x02014b50) throw hata();
+    const bayrak = u16(merkez + 8);
+    const yontem = u16(merkez + 10);
+    const sikisik = u32(merkez + 20);
+    const boyut = u32(merkez + 24);
+    const adBoyutu = u16(merkez + 28);
+    const yerel = u32(merkez + 42);
+    if (bayrak & ~0x080e || ![0, 8].includes(yontem) || u16(merkez + 34) ||
+        boyut < 45 || boyut > paketSiniri || sikisik < 1 || sikisik > zipSiniri ||
+        46 + adBoyutu + u16(merkez + 30) + u16(merkez + 32) !== merkezBoyut ||
+        yerel + 30 > merkez || u32(yerel) !== 0x04034b50) throw hata();
+
+    const ad = decoder.decode(baytlar.subarray(merkez + 46, merkez + 46 + adBoyutu));
+    if (!["ajans-sunum.ajans", "ajans-durum.ajans", "ajans-prova.ajans"].includes(ad) ||
+        u16(yerel + 6) !== bayrak || u16(yerel + 8) !== yontem ||
+        u16(yerel + 26) !== adBoyutu || yerel + 30 + adBoyutu > merkez ||
+        decoder.decode(baytlar.subarray(yerel + 30, yerel + 30 + adBoyutu)) !== ad) throw hata();
+    const baslangic = yerel + 30 + adBoyutu + u16(yerel + 28);
+    if (baslangic + sikisik > merkez) throw hata();
+
+    const akimBaytlari = baytlar.subarray(baslangic, baslangic + sikisik);
+    if (yontem === 0) {
+        if (boyut !== sikisik) throw hata();
+        return akimBaytlari;
+    }
+
+    let acici;
+    try {
+        acici = new DecompressionStream("deflate-raw");
+    } catch {
+        throw new Error("Bu tarayıcı ZIP açamıyor. Dosyalar uygulamasında ZIP’i açın ve .ajans dosyasını seçin.");
+    }
+    const okuyucu = new Blob([akimBaytlari]).stream().pipeThrough(acici).getReader();
+    const acilmis = new Uint8Array(boyut);
+    let yazilan = 0;
+    try {
+        while (true) {
+            const {done, value} = await okuyucu.read();
+            if (done) break;
+            if (yazilan + value.length > boyut) throw hata();
+            acilmis.set(value, yazilan);
+            yazilan += value.length;
+        }
+    } catch {
+        await okuyucu.cancel().catch(() => {});
+        throw hata();
+    }
+    if (yazilan !== boyut) throw hata();
+    return acilmis;
+}
+
+async function dosyaOku(dosya) {
+    if (!dosya || dosya.size > zipSiniri) throw new Error("Ajans Mobil ZIP çıktısını veya 10 MB’a kadar bir .ajans dosyasını seçin.");
+    const baytlar = new Uint8Array(await dosya.arrayBuffer());
+    if (baytlar[0] === 0x50 && baytlar[1] === 0x4b) return zipPaketiOku(baytlar);
+    if (baytlar.length > paketSiniri) throw new Error(".ajans dosyası 10 MB sınırını aşıyor.");
+    return baytlar;
+}
+
+function gorevleriGoster(gorevler) {
+    const liste = eleman("gorev-listesi");
+    liste.replaceChildren();
+    for (const gorev of gorevler) {
+        const satir = document.createElement("li");
+        const baslik = document.createElement("strong");
+        baslik.textContent = [gorev.isletme, gorev.kod].filter(Boolean).join(" · ") || gorev.id;
+        const bilgi = document.createElement("p");
+        bilgi.textContent = [gorev.id, durumlar[gorev.durum] || gorev.durum, gorev.guncelleme].filter(Boolean).join(" · ");
+        satir.append(baslik, bilgi);
+
+        if (Array.isArray(gorev.asamalar) && gorev.asamalar.length) {
+            const ayrinti = document.createElement("details");
+            const ozet = document.createElement("summary");
+            ozet.textContent = "Aşamalar";
+            const asamalar = document.createElement("ul");
+            for (const asama of gorev.asamalar) {
+                const madde = document.createElement("li");
+                madde.textContent = `${asama.ad} · ${durumlar[asama.durum] || asama.durum}`;
+                asamalar.append(madde);
+            }
+            ayrinti.append(ozet, asamalar);
+            satir.append(ayrinti);
+        }
+        if (/^AJ-[0-9]{8}-[0-9]{3,}$/.test(gorev.id)) {
+            const surdur = document.createElement("button");
+            surdur.textContent = "Sürdür";
+            surdur.addEventListener("click", () => {
+                eleman("devam").closest("details").open = true;
+                eleman("gorev").value = gorev.id;
+                eleman("gorev").focus();
+            });
+            satir.append(surdur);
+        }
+        liste.append(satir);
+    }
+    eleman("gorevler").hidden = !liste.childElementCount;
+}
+
 function goster(paket) {
+    if (Array.isArray(paket.gorevler)) {
+        gorevleriGoster(paket.gorevler);
+        if (!paket.sunum && !paket.gorevler.length) {
+            const bilgi = document.createElement("li");
+            bilgi.textContent = "Şifreli hafızada henüz görev bulunmuyor.";
+            eleman("gorev-listesi").append(bilgi);
+            eleman("gorevler").hidden = false;
+        }
+    }
+    if (!paket.sunum) return;
     const sayfalar = [{ad: "Sunum", html: paket.sunum}, ...paket.demolar];
     const dugmeler = eleman("sayfalar");
     const politika = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'\">";
+    const yatayKaydirma = `<style>
+        @media(max-width: 720px) {
+            body { min-width: 0; }
+            main, section, .duzen { min-width: 0; max-width: 100%; }
+            .ajans-tablo { display: block; max-width: 100%; min-width: 0; overflow-x: auto; }
+            .ajans-tablo > table { display: table; width: max-content; min-width: 100%; max-width: none; }
+            .ajans-tablo th, .ajans-tablo td { white-space: normal; min-width: 5rem; max-width: 16rem; }
+        }
+    </style>`;
     function sec(sira) {
         const sayfa = sayfalar[sira];
         // Tarayıcı pasif kaynakları önceden yüklemeden önce içeriği etkisiz bir şablonda işle.
@@ -137,6 +286,18 @@ function goster(paket) {
                 const hedef = eleman.getAttribute(ad);
                 if (hedef !== null && !hedef.startsWith("#")) eleman.removeAttribute(ad);
             }
+        });
+        icerik.content.querySelectorAll("table").forEach(tablo => {
+            const varOlan = tablo.parentElement?.matches(".tablo-kap");
+            const cerceve = varOlan ? tablo.parentElement : document.createElement("div");
+            if (!varOlan) {
+                tablo.replaceWith(cerceve);
+                cerceve.append(tablo);
+            }
+            cerceve.classList.add("ajans-tablo");
+            cerceve.tabIndex = 0;
+            cerceve.setAttribute("role", "region");
+            cerceve.setAttribute("aria-label", "Yatay kaydırılabilen tablo");
         });
         const baglantiBetigi = sira === 0 ? `<script>
             document.addEventListener("click", event => {
@@ -159,7 +320,7 @@ function goster(paket) {
         <\/script>` : "";
         cerceve.srcdoc = "<!doctype html><html lang=tr><head><meta charset=utf-8>" +
             '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-            politika + geciciDepo + "</head><body>" + icerik.innerHTML + baglantiBetigi + "</body></html>";
+            politika + geciciDepo + "</head><body>" + icerik.innerHTML + yatayKaydirma + baglantiBetigi + "</body></html>";
         cerceve.title = sayfa.ad;
         Array.from(dugmeler.children).forEach((dugme, i) => dugme.setAttribute("aria-pressed", String(i === sira)));
     }
@@ -183,13 +344,13 @@ eleman("ac").addEventListener("click", async () => {
     const durum = eleman("durum");
     eleman("ac").disabled = true;
     eleman("gosterim").hidden = true;
+    gorevleriGoster([]);
     eleman("sayfalar").replaceChildren();
     cerceve.removeAttribute("srcdoc");
     try {
         const dosya = eleman("paket").files[0];
-        if (!dosya || dosya.size > 10 * 1024 * 1024) throw new Error("10 MB’a kadar bir .ajans dosyası seçin.");
         durum.textContent = "Paket açılıyor…";
-        goster(await paketAc(new Uint8Array(await dosya.arrayBuffer()), parola()));
+        goster(await paketAc(await dosyaOku(dosya), parola()));
         durum.textContent = "";
     } catch (hata) {
         durum.textContent = hata instanceof DOMException ? "Paket açılamadı. Parolayı ve dosyayı kontrol edin." : hata.message;
