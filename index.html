@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="tr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self' about:; form-action 'none'; base-uri 'none'">
+<title>Ajans Mobil</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#edf4f1;color:#173632;font:1rem/1.5 system-ui,sans-serif}
+main{max-width:54rem;margin:auto;padding:1rem}
+section,details{background:#fff;margin:1rem 0;padding:1rem;border-radius:1rem}
+h1,h2{margin:0 0 .75rem;line-height:1.2}
+summary{cursor:pointer;font-weight:650}
+label{display:block;margin:.7rem 0 .25rem}
+input,textarea,button{font:inherit}
+input,textarea{width:100%;padding:.65rem;border:1px solid #79948d;border-radius:.4rem}
+textarea{min-height:5rem}
+button{min-height:44px;padding:.55rem .9rem;margin:.5rem .25rem 0 0;border:0;border-radius:.4rem;background:#125e53;color:white}
+button[aria-pressed=true]{background:#173632}
+iframe{width:100%;height:80vh;border:1px solid #79948d;border-radius:.7rem;background:#fff;margin-top:.75rem}
+#durum:empty{display:none}
+</style>
+<main>
+<h1>Ajans Mobil</h1>
+<p>Talep ve sunumlar bu tarayıcıda şifrelenir ve açılır.</p>
+<label for="parola">Mobil paket parolası</label>
+<input id="parola" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" minlength="32" required>
+
+<section>
+<h2>Müşteri sunumu</h2>
+<label for="paket">Actions çıktısından çıkarılan .ajans dosyası</label>
+<input id="paket" type="file" accept=".ajans">
+<button id="ac">Paketi aç</button>
+</section>
+<section id="gosterim" hidden>
+<nav id="sayfalar" aria-label="Sunum ve demolar"></nav>
+<iframe id="cerceve" title="Müşteri sunumu" sandbox="allow-scripts allow-forms allow-modals allow-downloads"></iframe>
+</section>
+
+<details>
+<summary>Yeni Türkçe talep</summary>
+<form id="talep">
+<label for="isletme">İşletme adı veya IS kodu</label>
+<input id="isletme" name="isletme" required maxlength="160" autocomplete="off">
+<label for="web">Doğruladığınız resmî site (isteğe bağlı)</label>
+<input id="web" name="web" type="url" maxlength="400" autocomplete="off">
+<label for="sehir">Şehir (isteğe bağlı)</label>
+<input id="sehir" name="sehir" maxlength="100" autocomplete="off">
+<label for="metin">Talep</label>
+<textarea id="metin" name="talep" required maxlength="1800" autocomplete="off"></textarea>
+<button>Talebi şifrele</button>
+</form>
+</details>
+<details>
+<summary>Kayıtlı görevi sürdür</summary>
+<form id="devam">
+<label for="gorev">Görev kodu</label>
+<input id="gorev" name="gorev" required pattern="AJ-[0-9]{8}-[0-9]{3,}" autocomplete="off">
+<button>Görev kodunu şifrele</button>
+</form>
+</details>
+<section id="cikti" hidden>
+<label for="kod">Actions → Ajans Mobil → sifreli-talep → paket</label>
+<textarea id="kod" readonly spellcheck="false"></textarea>
+<button id="kopyala">Kodu kopyala</button>
+</section>
+<p id="durum" role="status"></p>
+</main>
+<script>
+"use strict";
+const eleman = id => document.getElementById(id);
+const encoder = new TextEncoder();
+const decoder = new TextDecoder("utf-8", {fatal: true});
+const cerceve = eleman("cerceve");
+
+function parola() {
+    const deger = eleman("parola").value;
+    if (deger.length < 32 || !crypto.subtle) {
+        throw new Error("HTTPS ve en az 32 karakterli mobil paket parolası gerekli.");
+    }
+    return deger;
+}
+
+async function anahtar(deger, salt) {
+    const kaynak = await crypto.subtle.importKey("raw", encoder.encode(deger), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey(
+        {name: "PBKDF2", salt, iterations: 600000, hash: "SHA-256"},
+        kaynak, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]
+    );
+}
+
+async function istekSifrele(istek, deger) {
+    const tuz = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const sifreli = new Uint8Array(await crypto.subtle.encrypt(
+        {name: "AES-GCM", iv, additionalData: encoder.encode("ajans-talep-v1")},
+        await anahtar(deger, tuz), encoder.encode(JSON.stringify(istek))
+    ));
+    const paket = new Uint8Array(29 + sifreli.length);
+    paket[0] = 1;
+    paket.set(tuz, 1);
+    paket.set(iv, 17);
+    paket.set(sifreli, 29);
+    return btoa(Array.from(paket, bayt => String.fromCharCode(bayt)).join(""))
+        .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+async function paketAc(paket, deger) {
+    if (paket.length < 45 || paket[0] !== 1) throw new Error("Paket biçimi geçersiz.");
+    const sonuc = await crypto.subtle.decrypt(
+        {name: "AES-GCM", iv: paket.slice(17, 29), additionalData: encoder.encode("ajans-sunum-v1")},
+        await anahtar(deger, paket.slice(1, 17)), paket.slice(29)
+    );
+    return JSON.parse(decoder.decode(sonuc));
+}
+
+function goster(paket) {
+    const sayfalar = [{ad: "Sunum", html: paket.sunum}, ...paket.demolar];
+    const dugmeler = eleman("sayfalar");
+    const politika = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'\">";
+    function sec(sira) {
+        const sayfa = sayfalar[sira];
+        const html = sayfa.html.replace(/^\s*<!doctype html>/i, "");
+        const baglantiBetigi = sira === 0 ? `<script>
+            document.addEventListener("click", event => {
+                const bag = event.target.closest("a[href^='#demo-']");
+                if (!bag) return;
+                event.preventDefault();
+                parent.postMessage({demo: Number(bag.getAttribute("href").slice(6))}, "*");
+            });
+        <\/script>` : "";
+        const geciciDepo = sira > 0 ? `<script>
+            try { void window.localStorage; }
+            catch {
+                const kayitlar = new Map();
+                Object.defineProperty(window, "localStorage", {value: {
+                    getItem: key => kayitlar.get(key) ?? null,
+                    setItem: (key, value) => kayitlar.set(key, String(value)),
+                    removeItem: key => kayitlar.delete(key)
+                }});
+            }
+        <\/script>` : "";
+        cerceve.srcdoc = "<!doctype html>" + politika + geciciDepo + html + baglantiBetigi;
+        cerceve.title = sayfa.ad;
+        Array.from(dugmeler.children).forEach((dugme, i) => dugme.setAttribute("aria-pressed", String(i === sira)));
+    }
+    dugmeler.replaceChildren(...sayfalar.map((sayfa, i) => {
+        const dugme = document.createElement("button");
+        dugme.textContent = sayfa.ad;
+        dugme.addEventListener("click", () => sec(i));
+        return dugme;
+    }));
+    eleman("gosterim").hidden = false;
+    sec(0);
+}
+
+window.addEventListener("message", event => {
+    if (event.source !== cerceve.contentWindow || event.origin !== "null") return;
+    const sira = event.data?.demo;
+    if (Number.isInteger(sira) && sira >= 0) eleman("sayfalar").children[sira + 1]?.click();
+});
+
+eleman("ac").addEventListener("click", async () => {
+    const durum = eleman("durum");
+    eleman("ac").disabled = true;
+    eleman("gosterim").hidden = true;
+    eleman("sayfalar").replaceChildren();
+    cerceve.removeAttribute("srcdoc");
+    try {
+        const dosya = eleman("paket").files[0];
+        if (!dosya || dosya.size > 10 * 1024 * 1024) throw new Error("10 MB’a kadar bir .ajans dosyası seçin.");
+        durum.textContent = "Paket açılıyor…";
+        goster(await paketAc(new Uint8Array(await dosya.arrayBuffer()), parola()));
+        durum.textContent = "";
+    } catch (hata) {
+        durum.textContent = hata instanceof DOMException ? "Paket açılamadı. Parolayı ve dosyayı kontrol edin." : hata.message;
+    } finally {
+        eleman("ac").disabled = false;
+    }
+});
+
+for (const id of ["talep", "devam"]) {
+    eleman(id).addEventListener("submit", async event => {
+        event.preventDefault();
+        const durum = eleman("durum");
+        eleman("cikti").hidden = true;
+        eleman("kod").value = "";
+        try {
+            const istek = Object.fromEntries(new FormData(event.currentTarget));
+            const kod = await istekSifrele(istek, parola());
+            if (kod.length > 8192) throw new Error("Talep fazla uzun. Metni kısaltın.");
+            eleman("kod").value = kod;
+            eleman("cikti").hidden = false;
+            durum.textContent = "Şifreli talep hazır.";
+        } catch (hata) {
+            durum.textContent = hata.message;
+        }
+    });
+}
+
+eleman("kopyala").addEventListener("click", async () => {
+    try {
+        await navigator.clipboard.writeText(eleman("kod").value);
+        eleman("durum").textContent = "Şifreli talep kopyalandı.";
+    } catch {
+        eleman("kod").select();
+        eleman("durum").textContent = "Seçili şifreli metni kopyalayın.";
+    }
+});
+</script>
+</html>
