@@ -121,7 +121,23 @@ function goster(paket) {
     const politika = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'\">";
     function sec(sira) {
         const sayfa = sayfalar[sira];
-        const html = sayfa.html.replace(/^\s*<!doctype html>/i, "");
+        // Tarayıcı pasif kaynakları önceden yüklemeden önce içeriği etkisiz bir şablonda işle.
+        const icerik = document.createElement("template");
+        icerik.innerHTML = sayfa.html;
+        icerik.content.querySelectorAll("base, link, meta, iframe, frame, object, embed, audio, video, source, track")
+            .forEach(eleman => eleman.remove());
+        icerik.content.querySelectorAll("[src], [srcset], [poster], [background]").forEach(eleman => {
+            for (const ad of ["src", "srcset", "poster", "background"]) {
+                if (ad === "src" && eleman.tagName === "IMG" && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(eleman.getAttribute(ad) || "")) continue;
+                eleman.removeAttribute(ad);
+            }
+        });
+        icerik.content.querySelectorAll("[href], [xlink\\:href]").forEach(eleman => {
+            for (const ad of ["href", "xlink:href"]) {
+                const hedef = eleman.getAttribute(ad);
+                if (hedef !== null && !hedef.startsWith("#")) eleman.removeAttribute(ad);
+            }
+        });
         const baglantiBetigi = sira === 0 ? `<script>
             document.addEventListener("click", event => {
                 const bag = event.target.closest("a[href^='#demo-']");
@@ -141,7 +157,9 @@ function goster(paket) {
                 }});
             }
         <\/script>` : "";
-        cerceve.srcdoc = "<!doctype html>" + politika + geciciDepo + html + baglantiBetigi;
+        cerceve.srcdoc = "<!doctype html><html lang=tr><head><meta charset=utf-8>" +
+            '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+            politika + geciciDepo + "</head><body>" + icerik.innerHTML + baglantiBetigi + "</body></html>";
         cerceve.title = sayfa.ad;
         Array.from(dugmeler.children).forEach((dugme, i) => dugme.setAttribute("aria-pressed", String(i === sira)));
     }
