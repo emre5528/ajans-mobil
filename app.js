@@ -676,3 +676,33 @@ eleman("kopyala").addEventListener("click", async () => {
         eleman("durum").textContent = "Seçili şifreli metni kopyalayın.";
     }
 });
+
+
+const kasaAdi = "ajans-kasa-v1";
+async function kasaAnahtari(p, salt) {
+ const k=await crypto.subtle.importKey("raw",encoder.encode(p),"PBKDF2",false,["deriveKey"]);
+ return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:600000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+function kasaPaneli(){
+ const panel=document.createElement("div");panel.className="panel";
+ const baslik=yazi("h2","Kişisel parola");const p=document.createElement("input");p.type="password";p.autocomplete="current-password";p.placeholder="Kişisel parola (en az 12 karakter)";
+ const durum=eleman("durum");
+ const kayit=dugme("Bu cihazda güvenli kaydet",async()=>{
+ try{if(p.value.length<12)throw Error("En az 12 karakterli parola kullanın.");
+ const veri={parola:parola(),token:githubBelirteci()};
+ const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+ const c=await crypto.subtle.encrypt({name:"AES-GCM",iv},await kasaAnahtari(p.value,salt),encoder.encode(JSON.stringify(veri)));
+ localStorage.setItem(kasaAdi,JSON.stringify({salt:[...salt],iv:[...iv],c:[...new Uint8Array(c)]}));p.value="";durum.textContent="Cihaz kaydedildi.";gezin("ana");
+ }catch(e){durum.textContent=e.message;}
+ });
+ const ac=dugme("Giriş yap",async()=>{try{
+ const v=JSON.parse(localStorage.getItem(kasaAdi));if(!v)throw Error("Önce cihazı kaydedin.");
+ const d=JSON.parse(decoder.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:new Uint8Array(v.iv)},await kasaAnahtari(p.value,new Uint8Array(v.salt)),new Uint8Array(v.c))));
+ eleman("parola").value=d.parola;eleman("github-token").value=d.token;eleman("github-token").dispatchEvent(new Event("input"));p.value="";durum.textContent="Oturum açıldı.";gezin("ana");
+ }catch{durum.textContent="Parola yanlış veya cihaz kaydı okunamadı.";}});
+ const sil=dugme("Cihaz kaydını sil",()=>{if(confirm("Cihaz kaydı silinsin mi?")){localStorage.removeItem(kasaAdi);eleman("kilitle").click();location.reload();}});
+ panel.append(baslik,p,ac,kayit,sil);eleman("github-ayarlari").before(panel);
+ if(localStorage.getItem(kasaAdi)){eleman("github-ayarlari").hidden=true;kayit.hidden=true;gezin("ayarlar");}
+ else{ac.hidden=true;sil.hidden=true;}
+}
+kasaPaneli();
