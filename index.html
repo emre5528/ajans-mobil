@@ -1,545 +1,102 @@
 <!doctype html>
 <html lang="tr">
+<head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self' about:; connect-src https://api.github.com https://*.blob.core.windows.net; form-action 'none'; base-uri 'none'">
+<meta name="theme-color" content="#111c22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; worker-src 'self'; manifest-src 'self'; frame-src 'self' about:; connect-src https://api.github.com https://*.blob.core.windows.net; form-action 'none'; base-uri 'none'">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="app.css">
 <title>Ajans Mobil</title>
-<style>
-*{box-sizing:border-box}
-body{margin:0;background:#edf4f1;color:#173632;font:1rem/1.5 system-ui,sans-serif}
-main{max-width:54rem;margin:auto;padding:1rem}
-section,details{background:#fff;margin:1rem 0;padding:1rem;border-radius:1rem}
-h1,h2{margin:0 0 .75rem;line-height:1.2}
-summary{cursor:pointer;font-weight:650}
-label{display:block;margin:.7rem 0 .25rem}
-input,textarea,button{font:inherit}
-input,textarea{width:100%;padding:.65rem;border:1px solid #79948d;border-radius:.4rem}
-textarea{min-height:5rem}
-button{min-height:44px;padding:.55rem .9rem;margin:.5rem .25rem 0 0;border:0;border-radius:.4rem;background:#125e53;color:white}
-button[aria-pressed=true]{background:#173632}
-a{color:#125e53;overflow-wrap:anywhere}
-#gorev-listesi{display:grid;gap:.8rem;padding:0;list-style:none}
-#gorev-listesi li{border:1px solid #d1e0dc;border-radius:.6rem;padding:.65rem;overflow-wrap:anywhere}
-#gorev-listesi p{margin:.3rem 0}
-#gorev-listesi strong{display:block}
-#gorev-listesi details{margin:.2rem 0;padding:0}
-iframe{width:100%;height:80vh;border:1px solid #79948d;border-radius:.7rem;background:#fff;margin-top:.75rem}
-#durum:empty{display:none}
-</style>
+</head>
+<body>
+<header class="ust"><a class="marka" href="#ana"><img src="icon-192.png" alt="" width="38" height="38"><span>AI Dijital Ajans</span></a><a href="#ayarlar" aria-label="Ayarlar" class="ayar-kisayol" title="Ayarlar">⚙</a></header>
 <main>
-<h1>Ajans Mobil</h1>
-<p>Talep ve sunumlar bu tarayıcıda şifrelenir ve açılır.</p>
-<label for="parola">Mobil paket parolası</label>
-<input id="parola" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" minlength="32" required>
-
-<details id="github-ayarlari">
-<summary>GitHub ile doğrudan çalıştır ve görüntüle</summary>
-<label for="github-token">Bu oturum için GitHub erişim belirteci</label>
-<input id="github-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…">
-<p>Yalnızca özel Ajans deposuna ait Actions okuma ve yazma yetkili, fine-grained belirteç kullanın. Sayfa yenilendiğinde tekrar girilir.</p>
-<label for="calistirma">Çalıştırma numarası</label>
-<input id="calistirma" inputmode="numeric" autocomplete="off" pattern="[0-9]+" placeholder="Görev başlatınca otomatik doldurulur">
-<button id="github-ac" type="button">GitHub sonucunu aç</button>
+<p id="durum" role="status" aria-live="polite" tabindex="-1"></p>
+<section data-ekran="ana">
+<div class="hero"><div class="hero-iz"></div><div class="hero-icerik"><h1>Ajans paneli</h1><p>Müşterileri, görevleri ve sunumları tek yerden yönetin.</p><a class="buton acik" href="#yeni">＋ Yeni müşteri oluştur</a></div></div>
+<div class="kartlar">
+<a class="kart" href="#musteriler"><span class="simge">▤</span><strong>Müşterilerim</strong><span>Müşteri dosyaları ve geçmiş</span></a>
+<a class="kart" href="#devam-eden"><span class="simge">◷</span><strong>Devam eden işler</strong><span>Görev durumu ve sonraki adımlar</span></a>
+<a class="kart" href="#tamamlanan"><span class="simge">✓</span><strong>Tamamlanan projeler</strong><span>Web siteleri, demolar ve sunumlar</span></a>
+<a class="kart" href="#raporlar"><span class="simge">▥</span><strong>Ajans raporları</strong><span>Görev ve proje özeti</span></a>
+<a class="kart" href="#ayarlar"><span class="simge">⚙</span><strong>Ayarlar</strong><span>Güvenli bağlantı ve erişim</span></a>
+</div>
+</section>
+<section data-ekran="yeni" hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><h1>Yeni müşteri oluştur</h1>
+<form id="talep" class="panel">
+<label for="isletme">Müşteri adı</label>
+<input id="isletme" name="isletme" required maxlength="160" autocomplete="off" placeholder="Müşteri adı veya mevcut IS kodu">
+<label for="metin">Görev talimatı</label>
+<textarea id="metin" name="talep" required maxlength="12000" autocomplete="off" rows="9" placeholder="İhtiyacı, beklenen çıktıları ve öncelikleri anlatın."></textarea>
+<div class="satir"><button type="button" id="mikrofon" class="ikincil">Mikrofonla yaz</button><span id="karakter">0 / 12.000</span></div>
+<p class="yardim" id="mikrofon-bilgi" aria-live="polite">iPhone klavyesinin mikrofonuyla bu alana doğrudan dikte edebilirsiniz. Siri gerekmez.</p>
+<details class="ek-alanlar"><summary>İsteğe bağlı müşteri bilgileri</summary>
+<label for="web">Doğruladığınız resmî site</label><input id="web" name="web" type="url" maxlength="400" autocomplete="off">
+<label for="sehir">Şehir</label><input id="sehir" name="sehir" maxlength="100" autocomplete="off">
 </details>
-
-<section>
-<h2>Müşteri sunumu</h2>
-<label for="paket">GitHub Actions ZIP çıktısı veya .ajans dosyası</label>
-<input id="paket" type="file" accept=".ajans,.zip,application/zip">
-<button id="ac">Paketi aç</button>
-<p><a href="https://github.com/emre5528/AI-Dijital-Ajans/actions/workflows/mobil.yml" target="_blank" rel="noopener noreferrer">Özel GitHub çalıştırmalarını aç</a></p>
-</section>
-<section id="gorevler" hidden>
-<h2>Görev geçmişi</h2>
-<ul id="gorev-listesi"></ul>
-</section>
-<section id="gosterim" hidden>
-<nav id="sayfalar" aria-label="Sunum ve demolar"></nav>
-<iframe id="cerceve" title="Müşteri sunumu" sandbox="allow-scripts allow-forms allow-modals allow-downloads"></iframe>
-</section>
-
-<details>
-<summary>Yeni Türkçe talep</summary>
-<form id="talep">
-<label for="isletme">İşletme adı veya IS kodu</label>
-<input id="isletme" name="isletme" required maxlength="160" autocomplete="off">
-<label for="web">Doğruladığınız resmî site (isteğe bağlı)</label>
-<input id="web" name="web" type="url" maxlength="400" autocomplete="off">
-<label for="sehir">Şehir (isteğe bağlı)</label>
-<input id="sehir" name="sehir" maxlength="100" autocomplete="off">
-<label for="metin">Talep</label>
-<textarea id="metin" name="talep" required maxlength="1800" autocomplete="off"></textarea>
+<label class="onay"><input id="claude-plan" type="checkbox" checked> Talimatı Claude ile planla</label>
+<p class="yardim">Claude, talimatı mevcut ajan aşamalarına eşler. Talimata parola veya özel müşteri bilgisi eklemeyin.</p>
 <button id="talep-gonder">Talebi şifrele</button>
 </form>
-</details>
-<details>
-<summary>Kayıtlı görevi sürdür</summary>
+</section>
+<section data-ekran="musteriler" hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Müşterilerim</h1><button type="button" class="ikincil esitle">Yenile</button></div>
+<div id="musteriler" class="liste"></div>
+</section>
+<section data-ekran="musteri" hidden>
+<a class="geri" href="#musteriler">‹ Müşterilerim</a><h1 id="musteri-baslik">Müşteri dosyası</h1><div id="musteri-icerik"></div>
+</section>
+<section data-ekran="devam-eden" hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Devam eden işler</h1><button type="button" class="ikincil esitle">Yenile</button></div>
+<div id="acik-isler" class="liste"></div>
+<details id="devam-alani" class="panel"><summary>Görev koduyla sürdür</summary>
 <form id="devam">
-<label for="gorev">Görev kodu</label>
-<input id="gorev" name="gorev" required pattern="AJ-[0-9]{8}-[0-9]{3,}" autocomplete="off">
+<label for="gorev">Görev kodu</label><input id="gorev" name="gorev" required pattern="AJ-[0-9]{8}-[0-9]{3,}" autocomplete="off">
 <button id="devam-gonder">Görev kodunu şifrele</button>
 </form>
 </details>
-<section id="cikti" hidden>
-<label for="kod">Actions → Ajans Mobil → sifreli-talep → paket</label>
-<textarea id="kod" readonly spellcheck="false"></textarea>
-<button id="kopyala">Kodu kopyala</button>
-<p><a href="https://github.com/emre5528/AI-Dijital-Ajans/actions/workflows/mobil.yml" target="_blank" rel="noopener noreferrer">GitHub’da görevi başlat</a></p>
 </section>
-<p id="durum" role="status"></p>
+<section data-ekran="tamamlanan" hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Tamamlanan projeler</h1><button type="button" class="ikincil esitle">Yenile</button></div>
+<div id="biten-isler" class="liste"></div>
+</section>
+<section data-ekran="raporlar" hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Ajans raporları</h1><button type="button" class="ikincil esitle">Yenile</button></div>
+<div id="raporlar" class="kartlar"></div>
+</section>
+<section data-ekran="sunum" hidden>
+<a class="geri" href="#tamamlanan">‹ Tamamlanan projeler</a><h1>Proje görüntüleyici</h1>
+<div id="gosterim" hidden><nav id="sayfalar" aria-label="Sunum ve demolar"></nav>
+<iframe id="cerceve" title="Müşteri sunumu" sandbox="allow-scripts allow-forms allow-modals allow-downloads"></iframe></div>
+</section>
+<section data-ekran="ayarlar" hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><h1>Ayarlar</h1>
+<div class="panel" id="github-ayarlari"><h2>Güvenli erişim</h2>
+<label for="parola">Mobil paket parolası</label><input id="parola" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" minlength="32">
+<label for="github-token">GitHub erişim belirteci</label><input id="github-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+<p class="yardim">Yalnızca Ajans deposuna yetkili Actions belirtecini kullanın. Değerler bu sekmede kalır.</p>
+<div class="satir"><button type="button" id="baglanti-kaydet">Bağlantıyı kullan</button><button type="button" id="kilitle" class="ikincil">Oturumu temizle</button></div>
+</div>
+<details class="panel" id="teknik"><summary>GitHub çalıştırmaları ve şifreli dosyalar</summary>
+<label for="calistirma">GitHub çalıştırma numarası</label><input id="calistirma" inputmode="numeric" autocomplete="off" pattern="[0-9]+">
+<button id="github-ac" type="button">GitHub sonucunu aç</button>
+<label for="paket">Şifreli paket</label><input id="paket" type="file" accept=".ajans,.zip,application/zip">
+<button id="ac" type="button">Paketi aç</button>
+<p><a href="https://github.com/emre5528/AI-Dijital-Ajans/actions/workflows/mobil.yml" target="_blank" rel="noopener noreferrer">Özel GitHub çalıştırmaları</a></p>
+<div id="cikti" hidden><label for="kod">Şifreli görev kodu</label><textarea id="kod" readonly spellcheck="false"></textarea><button id="kopyala" type="button">Kodu kopyala</button></div>
+</details>
+<div class="panel"><h2>Ana ekrana ekle</h2><p>iPhone’da Safari paylaşım menüsünden <strong>Ana Ekrana Ekle</strong> seçin.</p></div>
+</section>
 </main>
-<script>
-"use strict";
-const eleman = id => document.getElementById(id);
-const encoder = new TextEncoder();
-const decoder = new TextDecoder("utf-8", {fatal: true});
-const cerceve = eleman("cerceve");
-const paketSiniri = 10 * 1024 * 1024;
-const zipSiniri = paketSiniri + 1024 * 1024;
-const githubHavuzu = "https://api.github.com/repos/emre5528/AI-Dijital-Ajans/actions";
-const calistirmaKodu = /^[1-9][0-9]{0,19}$/;
-let githubIslemSuruyor = false;
-const durumlar = {
-    olusturuldu: "Oluşturuldu", sirada: "Sırada", calisiyor: "Çalışıyor",
-    tamamlandi: "Tamamlandı", basarisiz: "Başarısız", kismen_tamamlandi: "Kısmen tamamlandı",
-    bekliyor: "Bekliyor", atlandi: "Atlandı", claude_bekliyor: "Uzman bekliyor",
-    devam_ediyor: "Devam ediyor", yeni: "Yeni"
-};
-
-function parola() {
-    const deger = eleman("parola").value;
-    if (deger.length < 32 || !crypto.subtle) {
-        throw new Error("HTTPS ve en az 32 karakterli mobil paket parolası gerekli.");
-    }
-    return deger;
-}
-
-async function anahtar(deger, salt) {
-    const kaynak = await crypto.subtle.importKey("raw", encoder.encode(deger), "PBKDF2", false, ["deriveKey"]);
-    return crypto.subtle.deriveKey(
-        {name: "PBKDF2", salt, iterations: 600000, hash: "SHA-256"},
-        kaynak, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]
-    );
-}
-
-async function istekSifrele(istek, deger) {
-    const tuz = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const sifreli = new Uint8Array(await crypto.subtle.encrypt(
-        {name: "AES-GCM", iv, additionalData: encoder.encode("ajans-talep-v1")},
-        await anahtar(deger, tuz), encoder.encode(JSON.stringify(istek))
-    ));
-    const paket = new Uint8Array(29 + sifreli.length);
-    paket[0] = 1;
-    paket.set(tuz, 1);
-    paket.set(iv, 17);
-    paket.set(sifreli, 29);
-    return btoa(Array.from(paket, bayt => String.fromCharCode(bayt)).join(""))
-        .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-}
-
-async function paketAc(paket, deger) {
-    if (paket.length < 45 || paket[0] !== 1) throw new Error("Paket biçimi geçersiz.");
-    const sonuc = await crypto.subtle.decrypt(
-        {name: "AES-GCM", iv: paket.slice(17, 29), additionalData: encoder.encode("ajans-sunum-v1")},
-        await anahtar(deger, paket.slice(1, 17)), paket.slice(29)
-    );
-    return JSON.parse(decoder.decode(sonuc));
-}
-
-async function zipPaketiOku(baytlar) {
-    const hata = () => new Error("ZIP geçersiz. Yalnızca Ajans Mobil çalıştırmasının özgün ZIP çıktısını seçin.");
-    const gorunum = new DataView(baytlar.buffer, baytlar.byteOffset, baytlar.byteLength);
-    const u16 = konum => gorunum.getUint16(konum, true);
-    const u32 = konum => gorunum.getUint32(konum, true);
-    let son = baytlar.length - 22;
-    const enErken = Math.max(0, son - 65535);
-    while (son >= enErken && (u32(son) !== 0x06054b50 || son + 22 + u16(son + 20) !== baytlar.length)) son--;
-    if (son < enErken || u16(son + 4) || u16(son + 6) || u16(son + 8) !== 1 || u16(son + 10) !== 1) throw hata();
-
-    const merkezBoyut = u32(son + 12);
-    const merkez = u32(son + 16);
-    if (merkezBoyut < 46 || merkez + merkezBoyut !== son || u32(merkez) !== 0x02014b50) throw hata();
-    const bayrak = u16(merkez + 8);
-    const yontem = u16(merkez + 10);
-    const sikisik = u32(merkez + 20);
-    const boyut = u32(merkez + 24);
-    const adBoyutu = u16(merkez + 28);
-    const yerel = u32(merkez + 42);
-    if (bayrak & ~0x080e || ![0, 8].includes(yontem) || u16(merkez + 34) ||
-        boyut < 45 || boyut > paketSiniri || sikisik < 1 || sikisik > zipSiniri ||
-        46 + adBoyutu + u16(merkez + 30) + u16(merkez + 32) !== merkezBoyut ||
-        yerel + 30 > merkez || u32(yerel) !== 0x04034b50) throw hata();
-
-    const ad = decoder.decode(baytlar.subarray(merkez + 46, merkez + 46 + adBoyutu));
-    if (!["ajans-sunum.ajans", "ajans-durum.ajans", "ajans-prova.ajans"].includes(ad) ||
-        u16(yerel + 6) !== bayrak || u16(yerel + 8) !== yontem ||
-        u16(yerel + 26) !== adBoyutu || yerel + 30 + adBoyutu > merkez ||
-        decoder.decode(baytlar.subarray(yerel + 30, yerel + 30 + adBoyutu)) !== ad) throw hata();
-    const baslangic = yerel + 30 + adBoyutu + u16(yerel + 28);
-    if (baslangic + sikisik > merkez) throw hata();
-
-    const akimBaytlari = baytlar.subarray(baslangic, baslangic + sikisik);
-    if (yontem === 0) {
-        if (boyut !== sikisik) throw hata();
-        return akimBaytlari;
-    }
-
-    let acici;
-    try {
-        acici = new DecompressionStream("deflate-raw");
-    } catch {
-        throw new Error("Bu tarayıcı ZIP açamıyor. Dosyalar uygulamasında ZIP’i açın ve .ajans dosyasını seçin.");
-    }
-    const okuyucu = new Blob([akimBaytlari]).stream().pipeThrough(acici).getReader();
-    const acilmis = new Uint8Array(boyut);
-    let yazilan = 0;
-    try {
-        while (true) {
-            const {done, value} = await okuyucu.read();
-            if (done) break;
-            if (yazilan + value.length > boyut) throw hata();
-            acilmis.set(value, yazilan);
-            yazilan += value.length;
-        }
-    } catch {
-        await okuyucu.cancel().catch(() => {});
-        throw hata();
-    }
-    if (yazilan !== boyut) throw hata();
-    return acilmis;
-}
-
-async function dosyaOku(dosya) {
-    if (!dosya || dosya.size > zipSiniri) throw new Error("Ajans Mobil ZIP çıktısını veya 10 MB’a kadar bir .ajans dosyasını seçin.");
-    const baytlar = new Uint8Array(await dosya.arrayBuffer());
-    if (baytlar[0] === 0x50 && baytlar[1] === 0x4b) return zipPaketiOku(baytlar);
-    if (baytlar.length > paketSiniri) throw new Error(".ajans dosyası 10 MB sınırını aşıyor.");
-    return baytlar;
-}
-
-function gorevleriGoster(gorevler) {
-    const liste = eleman("gorev-listesi");
-    liste.replaceChildren();
-    for (const gorev of gorevler) {
-        const satir = document.createElement("li");
-        const baslik = document.createElement("strong");
-        baslik.textContent = [gorev.isletme, gorev.kod].filter(Boolean).join(" · ") || gorev.id;
-        const bilgi = document.createElement("p");
-        bilgi.textContent = [gorev.id, durumlar[gorev.durum] || gorev.durum, gorev.guncelleme].filter(Boolean).join(" · ");
-        satir.append(baslik, bilgi);
-
-        if (Array.isArray(gorev.asamalar) && gorev.asamalar.length) {
-            const ayrinti = document.createElement("details");
-            const ozet = document.createElement("summary");
-            ozet.textContent = "Aşamalar";
-            const asamalar = document.createElement("ul");
-            for (const asama of gorev.asamalar) {
-                const madde = document.createElement("li");
-                madde.textContent = `${asama.ad} · ${durumlar[asama.durum] || asama.durum}`;
-                asamalar.append(madde);
-            }
-            ayrinti.append(ozet, asamalar);
-            satir.append(ayrinti);
-        }
-        if (/^AJ-[0-9]{8}-[0-9]{3,}$/.test(gorev.id)) {
-            const surdur = document.createElement("button");
-            surdur.textContent = "Sürdür";
-            surdur.addEventListener("click", () => {
-                eleman("devam").closest("details").open = true;
-                eleman("gorev").value = gorev.id;
-                eleman("gorev").focus();
-            });
-            satir.append(surdur);
-        }
-        liste.append(satir);
-    }
-    eleman("gorevler").hidden = !liste.childElementCount;
-}
-
-function goster(paket) {
-    if (Array.isArray(paket.gorevler)) {
-        gorevleriGoster(paket.gorevler);
-        if (!paket.sunum && !paket.gorevler.length) {
-            const bilgi = document.createElement("li");
-            bilgi.textContent = "Şifreli hafızada henüz görev bulunmuyor.";
-            eleman("gorev-listesi").append(bilgi);
-            eleman("gorevler").hidden = false;
-        }
-    }
-    if (!paket.sunum) return;
-    const sayfalar = [{ad: "Sunum", html: paket.sunum}, ...paket.demolar];
-    const dugmeler = eleman("sayfalar");
-    const politika = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'\">";
-    const yatayKaydirma = `<style>
-        @media(max-width: 720px) {
-            body { min-width: 0; }
-            main, section, .duzen { min-width: 0; max-width: 100%; }
-            .ajans-tablo { display: block; max-width: 100%; min-width: 0; overflow-x: auto; }
-            .ajans-tablo > table { display: table; width: max-content; min-width: 100%; max-width: none; }
-            .ajans-tablo th, .ajans-tablo td { white-space: normal; min-width: 5rem; max-width: 16rem; }
-        }
-    </style>`;
-    function sec(sira) {
-        const sayfa = sayfalar[sira];
-        // Tarayıcı pasif kaynakları önceden yüklemeden önce içeriği etkisiz bir şablonda işle.
-        const icerik = document.createElement("template");
-        icerik.innerHTML = sayfa.html;
-        icerik.content.querySelectorAll("base, link, meta, iframe, frame, object, embed, audio, video, source, track")
-            .forEach(eleman => eleman.remove());
-        icerik.content.querySelectorAll("[src], [srcset], [poster], [background]").forEach(eleman => {
-            for (const ad of ["src", "srcset", "poster", "background"]) {
-                if (ad === "src" && eleman.tagName === "IMG" && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(eleman.getAttribute(ad) || "")) continue;
-                eleman.removeAttribute(ad);
-            }
-        });
-        icerik.content.querySelectorAll("[href], [xlink\\:href]").forEach(eleman => {
-            for (const ad of ["href", "xlink:href"]) {
-                const hedef = eleman.getAttribute(ad);
-                if (hedef !== null && !hedef.startsWith("#")) eleman.removeAttribute(ad);
-            }
-        });
-        icerik.content.querySelectorAll("table").forEach(tablo => {
-            const varOlan = tablo.parentElement?.matches(".tablo-kap");
-            const cerceve = varOlan ? tablo.parentElement : document.createElement("div");
-            if (!varOlan) {
-                tablo.replaceWith(cerceve);
-                cerceve.append(tablo);
-            }
-            cerceve.classList.add("ajans-tablo");
-            cerceve.tabIndex = 0;
-            cerceve.setAttribute("role", "region");
-            cerceve.setAttribute("aria-label", "Yatay kaydırılabilen tablo");
-        });
-        const baglantiBetigi = sira === 0 ? `<script>
-            document.addEventListener("click", event => {
-                const bag = event.target.closest("a[href^='#demo-']");
-                if (!bag) return;
-                event.preventDefault();
-                parent.postMessage({demo: Number(bag.getAttribute("href").slice(6))}, "*");
-            });
-        <\/script>` : "";
-        const geciciDepo = sira > 0 ? `<script>
-            try { void window.localStorage; }
-            catch {
-                const kayitlar = new Map();
-                Object.defineProperty(window, "localStorage", {value: {
-                    getItem: key => kayitlar.get(key) ?? null,
-                    setItem: (key, value) => kayitlar.set(key, String(value)),
-                    removeItem: key => kayitlar.delete(key)
-                }});
-            }
-        <\/script>` : "";
-        cerceve.srcdoc = "<!doctype html><html lang=tr><head><meta charset=utf-8>" +
-            '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-            politika + geciciDepo + "</head><body>" + icerik.innerHTML + yatayKaydirma + baglantiBetigi + "</body></html>";
-        cerceve.title = sayfa.ad;
-        Array.from(dugmeler.children).forEach((dugme, i) => dugme.setAttribute("aria-pressed", String(i === sira)));
-    }
-    dugmeler.replaceChildren(...sayfalar.map((sayfa, i) => {
-        const dugme = document.createElement("button");
-        dugme.textContent = sayfa.ad;
-        dugme.addEventListener("click", () => sec(i));
-        return dugme;
-    }));
-    eleman("gosterim").hidden = false;
-    sec(0);
-}
-
-window.addEventListener("message", event => {
-    if (event.source !== cerceve.contentWindow || event.origin !== "null") return;
-    const sira = event.data?.demo;
-    if (Number.isInteger(sira) && sira >= 0) eleman("sayfalar").children[sira + 1]?.click();
-});
-
-function githubBelirteci() {
-    const belirtec = eleman("github-token").value.trim();
-    if (!/^github_pat_[A-Za-z0-9_]+$/.test(belirtec)) {
-        throw new Error("Bu oturum için fine-grained GitHub belirtecini girin.");
-    }
-    return belirtec;
-}
-
-async function github(rota, belirtec, veri, zip = false) {
-    const basliklar = {Authorization: "Bearer " + belirtec};
-    if (!zip) {
-        basliklar.Accept = "application/vnd.github+json";
-        basliklar["X-GitHub-Api-Version"] = "2026-03-10";
-    }
-    if (veri) basliklar["Content-Type"] = "application/json";
-    let donus;
-    try {
-        donus = await fetch(githubHavuzu + rota, {
-            method: veri ? "POST" : "GET", headers: basliklar,
-            body: veri ? JSON.stringify(veri) : undefined, credentials: "omit",
-            cache: "no-store", referrerPolicy: "no-referrer", redirect: zip ? "follow" : "error",
-            signal: AbortSignal.timeout(20000)
-        });
-    } catch {
-        throw new Error("GitHub bağlantısı doğrulanamadı. Tekrar göndermeden önce özel çalıştırmaları kontrol edin.");
-    }
-    if (donus.status === 404 || donus.status === 403 || donus.status === 401) {
-        throw new Error("GitHub erişimi reddedildi. Belirtecin bu özel depoya ve Actions’a yetkisini kontrol edin.");
-    }
-    if (!donus.ok) throw new Error(`GitHub isteği tamamlanamadı (HTTP ${donus.status}).`);
-    return donus;
-}
-
-async function githubPaketi(donus) {
-    if (!donus.body || Number(donus.headers.get("Content-Length")) > zipSiniri) {
-        throw new Error("GitHub paketi boyut sınırını aşıyor veya okunamıyor.");
-    }
-    const okuyucu = donus.body.getReader();
-    const parcalar = [];
-    let toplam = 0;
-    try {
-        while (true) {
-            const {done, value} = await okuyucu.read();
-            if (done) break;
-            toplam += value.length;
-            if (toplam > zipSiniri) throw new Error("GitHub paketi boyut sınırını aşıyor.");
-            parcalar.push(value);
-        }
-    } finally {
-        await okuyucu.cancel().catch(() => {});
-    }
-    return zipPaketiOku(new Uint8Array(await new Blob(parcalar).arrayBuffer()));
-}
-
-function sunumuTemizle() {
-    eleman("gosterim").hidden = true;
-    gorevleriGoster([]);
-    eleman("sayfalar").replaceChildren();
-    cerceve.removeAttribute("srcdoc");
-}
-
-async function githubSonucu(kod, belirtec, paketParolasi, bekle) {
-    if (!calistirmaKodu.test(kod)) throw new Error("Geçerli çalıştırma numarasını girin.");
-    const durum = eleman("durum");
-    for (let deneme = 0; deneme < (bekle ? 18 : 1); deneme++) {
-        const is = await (await github("/runs/" + kod, belirtec)).json();
-        if (is.path?.split("@")[0] !== ".github/workflows/mobil.yml" ||
-            is.head_branch !== "main" || is.event !== "workflow_dispatch") {
-            throw new Error("Bu çalıştırma Ajans Mobil’e ait değil.");
-        }
-        if (is.status === "completed") {
-            const liste = await (await github("/runs/" + kod + "/artifacts", belirtec)).json();
-            const paket = liste.artifacts.find(a => !a.expired &&
-                ["ajans-sunum", "ajans-durum", "ajans-prova"].includes(a.name));
-            if (!paket || !calistirmaKodu.test(String(paket.id))) {
-                durum.textContent = is.conclusion === "success"
-                    ? "Çalıştırma bitti. Açılabilecek paket bulunamadı."
-                    : "Çalıştırma tamamlanamadı. Ayrıntıları özel GitHub çalıştırmalarından açın.";
-                return;
-            }
-            const indir = await github("/artifacts/" + paket.id + "/zip", belirtec, null, true);
-            goster(await paketAc(await githubPaketi(indir), paketParolasi));
-            durum.textContent = is.conclusion === "success" ? "Şifreli sonuç açıldı." : "Kısmi şifreli sonuç açıldı.";
-            eleman("gosterim").scrollIntoView({block: "start"});
-            return;
-        }
-        durum.textContent = "Görev GitHub’da çalışıyor. Bu sayfayı kapatsanız da devam eder.";
-        if (bekle && deneme < 17) await new Promise(tamam => setTimeout(tamam, 10000));
-    }
-    durum.textContent = "Görev sürüyor. Daha sonra GitHub sonucunu aç düğmesiyle tekrar kontrol edin.";
-}
-
-function githubKilit(durum) {
-    githubIslemSuruyor = durum;
-    for (const id of ["github-ac", "ac", "talep-gonder", "devam-gonder", "github-token"]) eleman(id).disabled = durum;
-}
-
-eleman("github-token").addEventListener("input", () => {
-    const bagli = Boolean(eleman("github-token").value.trim());
-    eleman("talep-gonder").textContent = bagli ? "Görevi başlat" : "Talebi şifrele";
-    eleman("devam-gonder").textContent = bagli ? "Görevi sürdür" : "Görev kodunu şifrele";
-});
-
-const bildirimKodu = new URLSearchParams(location.hash.slice(1)).get("calistirma");
-if (bildirimKodu && calistirmaKodu.test(bildirimKodu)) {
-    eleman("github-ayarlari").open = true;
-    eleman("calistirma").value = bildirimKodu;
-}
-
-eleman("github-ac").addEventListener("click", async () => {
-    if (githubIslemSuruyor) return;
-    githubKilit(true);
-    sunumuTemizle();
-    try {
-        const kod = eleman("calistirma").value.trim();
-        await githubSonucu(kod, githubBelirteci(), parola(), false);
-    } catch (hata) {
-        eleman("durum").textContent = hata instanceof DOMException ? "Şifreli sonuç açılamadı." : hata.message;
-    } finally {
-        githubKilit(false);
-    }
-});
-
-eleman("ac").addEventListener("click", async () => {
-    const durum = eleman("durum");
-    eleman("ac").disabled = true;
-    sunumuTemizle();
-    try {
-        const dosya = eleman("paket").files[0];
-        durum.textContent = "Paket açılıyor…";
-        goster(await paketAc(await dosyaOku(dosya), parola()));
-        durum.textContent = "";
-    } catch (hata) {
-        durum.textContent = hata instanceof DOMException ? "Paket açılamadı. Parolayı ve dosyayı kontrol edin." : hata.message;
-    } finally {
-        eleman("ac").disabled = false;
-    }
-});
-
-for (const id of ["talep", "devam"]) {
-    eleman(id).addEventListener("submit", async event => {
-        event.preventDefault();
-        if (githubIslemSuruyor) return;
-        githubKilit(true);
-        const durum = eleman("durum");
-        eleman("cikti").hidden = true;
-        eleman("kod").value = "";
-        try {
-            const istek = Object.fromEntries(new FormData(event.currentTarget));
-            const paketParolasi = parola();
-            const kod = await istekSifrele(istek, paketParolasi);
-            if (kod.length > 8192) throw new Error("Talep fazla uzun. Metni kısaltın.");
-            if (eleman("github-token").value.trim()) {
-                const belirtec = githubBelirteci();
-                const cevap = await github("/workflows/mobil.yml/dispatches", belirtec, {
-                    ref: "main", inputs: {islem: "sifreli-talep", paket: kod}
-                });
-                const kayit = await cevap.json().catch(() => ({}));
-                const numara = String(kayit.workflow_run_id);
-                if (!calistirmaKodu.test(numara)) {
-                    throw new Error("İstek kabul edildi ancak çalıştırma numarası alınamadı. GitHub çalıştırmalarını kontrol edin.");
-                }
-                eleman("github-ayarlari").open = true;
-                eleman("calistirma").value = numara;
-                sunumuTemizle();
-                await githubSonucu(numara, belirtec, paketParolasi, true);
-            } else {
-                eleman("kod").value = kod;
-                eleman("cikti").hidden = false;
-                durum.textContent = "Şifreli talep hazır.";
-            }
-        } catch (hata) {
-            durum.textContent = hata instanceof DOMException ? "Şifreli sonuç açılamadı." : hata.message;
-        } finally {
-            githubKilit(false);
-        }
-    });
-}
-
-eleman("kopyala").addEventListener("click", async () => {
-    try {
-        await navigator.clipboard.writeText(eleman("kod").value);
-        eleman("durum").textContent = "Şifreli talep kopyalandı.";
-    } catch {
-        eleman("kod").select();
-        eleman("durum").textContent = "Seçili şifreli metni kopyalayın.";
-    }
-});
-</script>
+<nav class="alt" aria-label="Ana gezinme">
+<a href="#ana"><b>⌂</b><span>Ana ekran</span></a><a href="#musteriler"><b>▤</b><span>Müşteriler</span></a><a href="#devam-eden"><b>◷</b><span>İşler</span></a><a href="#ayarlar"><b>⚙</b><span>Ayarlar</span></a>
+</nav>
+<script src="app.js" defer></script>
+</body>
 </html>
