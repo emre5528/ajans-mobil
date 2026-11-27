@@ -10,15 +10,15 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css?v=2">
+<link rel="stylesheet" href="app.css?v=3">
 <title>Ajans Mobil</title>
 </head>
 <body>
 <header class="ust"><a class="marka" href="#ana"><img src="icon-192.png" alt="" width="38" height="38"><span>AI Dijital Ajans</span></a><a href="#ayarlar" aria-label="Ayarlar" class="ayar-kisayol" title="Ayarlar">⚙</a></header>
 <main>
 <p id="durum" role="status" aria-live="polite" tabindex="-1"></p>
-<section data-ekran="ana">
-<div class="hero"><div class="hero-iz"></div><div class="hero-icerik"><h1>Ajans paneli</h1><p>Müşterileri, görevleri ve sunumları tek yerden yönetin.</p><a class="buton acik" href="#yeni">＋ Yeni Görev</a></div></div>
+<section data-ekran="ana" data-talimat>
+<div class="hero"><div class="hero-iz"></div><div class="hero-icerik"><h1>Ne yapalım?</h1><p>Komutunuzu yazın veya söyleyin, Başlat’a dokunun. Bilgisayarınız kapalıyken de çalışır.</p></div></div>
 <div class="kartlar">
 <a class="kart" href="#musteri-bul"><span class="simge">⌕</span><strong>Müşteri Bul</strong><span>Sektöre göre fırsat araştır</span></a>
 <a class="kart" href="#musteriler"><span class="simge">▤</span><strong>Müşterilerim</strong><span>Müşteri dosyaları ve geçmiş</span></a>
@@ -41,7 +41,7 @@
 <div class="satir"><button type="button" id="mikrofon" class="ikincil">Mikrofonla yaz</button><span id="karakter">0 / 12.000</span></div>
 <p class="yardim" id="mikrofon-bilgi" aria-live="polite">iPhone klavyesinin mikrofonuyla da dikte edebilirsiniz.</p>
 <p class="yardim">Talimat, planlama için Claude’a iletilir. Parola veya özel kişisel bilgi eklemeyin.</p>
-<button id="talep-gonder">Görevi başlat</button>
+<button id="talep-gonder">Başlat</button>
 </form>
 <section data-ekran="musteriler" hidden>
 <a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Müşterilerim</h1><button type="button" class="ikincil esitle">Yenile</button></div>
@@ -79,12 +79,17 @@
 </section>
 <section data-ekran="ayarlar" hidden>
 <a class="geri" href="#ana">‹ Ajans paneli</a><h1>Ayarlar</h1>
-<div class="panel" id="github-ayarlari"><h2>Güvenli erişim</h2>
-<label for="parola">Mobil paket parolası</label><input id="parola" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" minlength="32">
-<label for="github-token">GitHub erişim belirteci</label><input id="github-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
-<p class="yardim">Yalnızca Ajans deposuna yetkili Actions belirtecini kullanın. Değerler bu sekmede kalır.</p>
-<div class="satir"><button type="button" id="baglanti-kaydet">Bağlantıyı kullan</button><button type="button" id="kilitle" class="ikincil">Oturumu temizle</button></div>
+<div class="panel" id="github-ayarlari"><h2>Cihaz oturumu</h2>
+<p id="oturum-durum" class="yardim" aria-live="polite"></p>
+<label for="github-token">GitHub erişim belirteci (yalnızca ilk bağlantıda)</label><input id="github-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+<p class="yardim">Yalnızca Ajans deposuna Actions: okuma-yazma yetkili fine-grained belirteç. Bu cihazda dışa aktarılamayan bir anahtarla şifrelenip saklanır; URL'ye, loglara veya herkese açık depoya yazılmaz. Parola gerekmez.</p>
+<div class="satir"><button type="button" id="cihaz-bagla">Cihazı bağla</button><button type="button" id="oturum-kapat" class="ikincil" hidden>Oturumu kapat</button></div>
 </div>
+<details class="panel"><summary>Eski şifreli paketler (isteğe bağlı parola)</summary>
+<label for="parola">Mobil paket parolası</label><input id="parola" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" minlength="32">
+<p class="yardim">Yalnızca önceki sürümde parola ile üretilmiş .ajans dosyalarını açmak için. Yeni görevler parolasızdır.</p>
+<div class="satir"><button type="button" id="baglanti-kaydet">Parolayı bu sekmede kullan</button><button type="button" id="kilitle" class="ikincil">Sekme verilerini temizle</button></div>
+</details>
 <details class="panel" id="teknik"><summary>GitHub çalıştırmaları ve şifreli dosyalar</summary>
 <label for="calistirma">GitHub çalıştırma numarası</label><input id="calistirma" inputmode="numeric" autocomplete="off" pattern="[0-9]+">
 <button id="github-ac" type="button">GitHub sonucunu aç</button>
@@ -99,6 +104,6 @@
 <nav class="alt" aria-label="Ana gezinme">
 <a href="#ana"><b>⌂</b><span>Ana ekran</span></a><a href="#musteriler"><b>▤</b><span>Müşteriler</span></a><a href="#devam-eden"><b>◷</b><span>İşler</span></a><a href="#ayarlar"><b>⚙</b><span>Ayarlar</span></a>
 </nav>
-<script src="app.js?v=2" defer></script>
+<script src="app.js?v=3" defer></script>
 </body>
 </html>
