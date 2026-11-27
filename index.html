@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self' about:; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self' about:; connect-src https://api.github.com https://*.blob.core.windows.net; form-action 'none'; base-uri 'none'">
 <title>Ajans Mobil</title>
 <style>
 *{box-sizing:border-box}
@@ -33,6 +33,16 @@ iframe{width:100%;height:80vh;border:1px solid #79948d;border-radius:.7rem;backg
 <label for="parola">Mobil paket parolası</label>
 <input id="parola" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" minlength="32" required>
 
+<details id="github-ayarlari">
+<summary>GitHub ile doğrudan çalıştır ve görüntüle</summary>
+<label for="github-token">Bu oturum için GitHub erişim belirteci</label>
+<input id="github-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…">
+<p>Yalnızca özel Ajans deposuna ait Actions okuma ve yazma yetkili, fine-grained belirteç kullanın. Sayfa yenilendiğinde tekrar girilir.</p>
+<label for="calistirma">Çalıştırma numarası</label>
+<input id="calistirma" inputmode="numeric" autocomplete="off" pattern="[0-9]+" placeholder="Görev başlatınca otomatik doldurulur">
+<button id="github-ac" type="button">GitHub sonucunu aç</button>
+</details>
+
 <section>
 <h2>Müşteri sunumu</h2>
 <label for="paket">GitHub Actions ZIP çıktısı veya .ajans dosyası</label>
@@ -60,7 +70,7 @@ iframe{width:100%;height:80vh;border:1px solid #79948d;border-radius:.7rem;backg
 <input id="sehir" name="sehir" maxlength="100" autocomplete="off">
 <label for="metin">Talep</label>
 <textarea id="metin" name="talep" required maxlength="1800" autocomplete="off"></textarea>
-<button>Talebi şifrele</button>
+<button id="talep-gonder">Talebi şifrele</button>
 </form>
 </details>
 <details>
@@ -68,7 +78,7 @@ iframe{width:100%;height:80vh;border:1px solid #79948d;border-radius:.7rem;backg
 <form id="devam">
 <label for="gorev">Görev kodu</label>
 <input id="gorev" name="gorev" required pattern="AJ-[0-9]{8}-[0-9]{3,}" autocomplete="off">
-<button>Görev kodunu şifrele</button>
+<button id="devam-gonder">Görev kodunu şifrele</button>
 </form>
 </details>
 <section id="cikti" hidden>
@@ -87,6 +97,9 @@ const decoder = new TextDecoder("utf-8", {fatal: true});
 const cerceve = eleman("cerceve");
 const paketSiniri = 10 * 1024 * 1024;
 const zipSiniri = paketSiniri + 1024 * 1024;
+const githubHavuzu = "https://api.github.com/repos/emre5528/AI-Dijital-Ajans/actions";
+const calistirmaKodu = /^[1-9][0-9]{0,19}$/;
+let githubIslemSuruyor = false;
 const durumlar = {
     olusturuldu: "Oluşturuldu", sirada: "Sırada", calisiyor: "Çalışıyor",
     tamamlandi: "Tamamlandı", basarisiz: "Başarısız", kismen_tamamlandi: "Kısmen tamamlandı",
@@ -340,13 +353,133 @@ window.addEventListener("message", event => {
     if (Number.isInteger(sira) && sira >= 0) eleman("sayfalar").children[sira + 1]?.click();
 });
 
-eleman("ac").addEventListener("click", async () => {
-    const durum = eleman("durum");
-    eleman("ac").disabled = true;
+function githubBelirteci() {
+    const belirtec = eleman("github-token").value.trim();
+    if (!/^github_pat_[A-Za-z0-9_]+$/.test(belirtec)) {
+        throw new Error("Bu oturum için fine-grained GitHub belirtecini girin.");
+    }
+    return belirtec;
+}
+
+async function github(rota, belirtec, veri, zip = false) {
+    const basliklar = {Authorization: "Bearer " + belirtec};
+    if (!zip) {
+        basliklar.Accept = "application/vnd.github+json";
+        basliklar["X-GitHub-Api-Version"] = "2026-03-10";
+    }
+    if (veri) basliklar["Content-Type"] = "application/json";
+    let donus;
+    try {
+        donus = await fetch(githubHavuzu + rota, {
+            method: veri ? "POST" : "GET", headers: basliklar,
+            body: veri ? JSON.stringify(veri) : undefined, credentials: "omit",
+            cache: "no-store", referrerPolicy: "no-referrer", redirect: zip ? "follow" : "error",
+            signal: AbortSignal.timeout(20000)
+        });
+    } catch {
+        throw new Error("GitHub bağlantısı doğrulanamadı. Tekrar göndermeden önce özel çalıştırmaları kontrol edin.");
+    }
+    if (donus.status === 404 || donus.status === 403 || donus.status === 401) {
+        throw new Error("GitHub erişimi reddedildi. Belirtecin bu özel depoya ve Actions’a yetkisini kontrol edin.");
+    }
+    if (!donus.ok) throw new Error(`GitHub isteği tamamlanamadı (HTTP ${donus.status}).`);
+    return donus;
+}
+
+async function githubPaketi(donus) {
+    if (!donus.body || Number(donus.headers.get("Content-Length")) > zipSiniri) {
+        throw new Error("GitHub paketi boyut sınırını aşıyor veya okunamıyor.");
+    }
+    const okuyucu = donus.body.getReader();
+    const parcalar = [];
+    let toplam = 0;
+    try {
+        while (true) {
+            const {done, value} = await okuyucu.read();
+            if (done) break;
+            toplam += value.length;
+            if (toplam > zipSiniri) throw new Error("GitHub paketi boyut sınırını aşıyor.");
+            parcalar.push(value);
+        }
+    } finally {
+        await okuyucu.cancel().catch(() => {});
+    }
+    return zipPaketiOku(new Uint8Array(await new Blob(parcalar).arrayBuffer()));
+}
+
+function sunumuTemizle() {
     eleman("gosterim").hidden = true;
     gorevleriGoster([]);
     eleman("sayfalar").replaceChildren();
     cerceve.removeAttribute("srcdoc");
+}
+
+async function githubSonucu(kod, belirtec, paketParolasi, bekle) {
+    if (!calistirmaKodu.test(kod)) throw new Error("Geçerli çalıştırma numarasını girin.");
+    const durum = eleman("durum");
+    for (let deneme = 0; deneme < (bekle ? 18 : 1); deneme++) {
+        const is = await (await github("/runs/" + kod, belirtec)).json();
+        if (is.path?.split("@")[0] !== ".github/workflows/mobil.yml" ||
+            is.head_branch !== "main" || is.event !== "workflow_dispatch") {
+            throw new Error("Bu çalıştırma Ajans Mobil’e ait değil.");
+        }
+        if (is.status === "completed") {
+            const liste = await (await github("/runs/" + kod + "/artifacts", belirtec)).json();
+            const paket = liste.artifacts.find(a => !a.expired &&
+                ["ajans-sunum", "ajans-durum", "ajans-prova"].includes(a.name));
+            if (!paket || !calistirmaKodu.test(String(paket.id))) {
+                durum.textContent = is.conclusion === "success"
+                    ? "Çalıştırma bitti. Açılabilecek paket bulunamadı."
+                    : "Çalıştırma tamamlanamadı. Ayrıntıları özel GitHub çalıştırmalarından açın.";
+                return;
+            }
+            const indir = await github("/artifacts/" + paket.id + "/zip", belirtec, null, true);
+            goster(await paketAc(await githubPaketi(indir), paketParolasi));
+            durum.textContent = is.conclusion === "success" ? "Şifreli sonuç açıldı." : "Kısmi şifreli sonuç açıldı.";
+            eleman("gosterim").scrollIntoView({block: "start"});
+            return;
+        }
+        durum.textContent = "Görev GitHub’da çalışıyor. Bu sayfayı kapatsanız da devam eder.";
+        if (bekle && deneme < 17) await new Promise(tamam => setTimeout(tamam, 10000));
+    }
+    durum.textContent = "Görev sürüyor. Daha sonra GitHub sonucunu aç düğmesiyle tekrar kontrol edin.";
+}
+
+function githubKilit(durum) {
+    githubIslemSuruyor = durum;
+    for (const id of ["github-ac", "ac", "talep-gonder", "devam-gonder", "github-token"]) eleman(id).disabled = durum;
+}
+
+eleman("github-token").addEventListener("input", () => {
+    const bagli = Boolean(eleman("github-token").value.trim());
+    eleman("talep-gonder").textContent = bagli ? "Görevi başlat" : "Talebi şifrele";
+    eleman("devam-gonder").textContent = bagli ? "Görevi sürdür" : "Görev kodunu şifrele";
+});
+
+const bildirimKodu = new URLSearchParams(location.hash.slice(1)).get("calistirma");
+if (bildirimKodu && calistirmaKodu.test(bildirimKodu)) {
+    eleman("github-ayarlari").open = true;
+    eleman("calistirma").value = bildirimKodu;
+}
+
+eleman("github-ac").addEventListener("click", async () => {
+    if (githubIslemSuruyor) return;
+    githubKilit(true);
+    sunumuTemizle();
+    try {
+        const kod = eleman("calistirma").value.trim();
+        await githubSonucu(kod, githubBelirteci(), parola(), false);
+    } catch (hata) {
+        eleman("durum").textContent = hata instanceof DOMException ? "Şifreli sonuç açılamadı." : hata.message;
+    } finally {
+        githubKilit(false);
+    }
+});
+
+eleman("ac").addEventListener("click", async () => {
+    const durum = eleman("durum");
+    eleman("ac").disabled = true;
+    sunumuTemizle();
     try {
         const dosya = eleman("paket").files[0];
         durum.textContent = "Paket açılıyor…";
@@ -362,18 +495,39 @@ eleman("ac").addEventListener("click", async () => {
 for (const id of ["talep", "devam"]) {
     eleman(id).addEventListener("submit", async event => {
         event.preventDefault();
+        if (githubIslemSuruyor) return;
+        githubKilit(true);
         const durum = eleman("durum");
         eleman("cikti").hidden = true;
         eleman("kod").value = "";
         try {
             const istek = Object.fromEntries(new FormData(event.currentTarget));
-            const kod = await istekSifrele(istek, parola());
+            const paketParolasi = parola();
+            const kod = await istekSifrele(istek, paketParolasi);
             if (kod.length > 8192) throw new Error("Talep fazla uzun. Metni kısaltın.");
-            eleman("kod").value = kod;
-            eleman("cikti").hidden = false;
-            durum.textContent = "Şifreli talep hazır.";
+            if (eleman("github-token").value.trim()) {
+                const belirtec = githubBelirteci();
+                const cevap = await github("/workflows/mobil.yml/dispatches", belirtec, {
+                    ref: "main", inputs: {islem: "sifreli-talep", paket: kod}
+                });
+                const kayit = await cevap.json().catch(() => ({}));
+                const numara = String(kayit.workflow_run_id);
+                if (!calistirmaKodu.test(numara)) {
+                    throw new Error("İstek kabul edildi ancak çalıştırma numarası alınamadı. GitHub çalıştırmalarını kontrol edin.");
+                }
+                eleman("github-ayarlari").open = true;
+                eleman("calistirma").value = numara;
+                sunumuTemizle();
+                await githubSonucu(numara, belirtec, paketParolasi, true);
+            } else {
+                eleman("kod").value = kod;
+                eleman("cikti").hidden = false;
+                durum.textContent = "Şifreli talep hazır.";
+            }
         } catch (hata) {
-            durum.textContent = hata.message;
+            durum.textContent = hata instanceof DOMException ? "Şifreli sonuç açılamadı." : hata.message;
+        } finally {
+            githubKilit(false);
         }
     });
 }
