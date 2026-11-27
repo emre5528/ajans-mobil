@@ -275,7 +275,8 @@ function rota() {
         eleman("teknik").open = true;
         ekran("ayarlar");
     } else {
-        ekran(["ana", "yeni", "musteri-bul", "musteriler", "devam-eden", "tamamlanan", "firsatlar", "raporlar", "sunum", "ayarlar"].includes(hash) ? hash : "ana");
+        ekran(["ana", "yeni", "musteri-bul", "musteriler", "devam-eden", "tamamlanan", "firsatlar", "raporlar", "sunum", "ayarlar", "teslimatlar"].includes(hash) ? hash : "ana");
+        if (hash === "teslimatlar") teslimatlariYukle();
     }
 }
 
@@ -849,3 +850,36 @@ eleman("kopyala").addEventListener("click", async () => {
         eleman("durum").textContent = "Seçili şifreli metni kopyalayın.";
     }
 });
+
+// Teslimatlar: ürünler panel içinde değil, ayrı HTTPS adreslerinde tarayıcıda açılır.
+const TESLIM_KATALOG = "https://emre5528.github.io/ajans-urunler/urunler.json";
+const TESLIM_TABAN = "https://emre5528.github.io/ajans-urunler/";
+async function teslimatlariYukle() {
+    const kutu = eleman("teslim-liste");
+    try {
+        const yanit = await fetch(TESLIM_KATALOG, {cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer"});
+        if (!yanit.ok) throw new Error("HTTP " + yanit.status);
+        const veri = await yanit.json();
+        const urunler = Array.isArray(veri.urunler) ? veri.urunler : [];
+        kutu.replaceChildren();
+        if (!urunler.length) { kutu.textContent = "Henüz yayımlanmış ürün yok."; return; }
+        for (const u of urunler) {
+            const adres = String(u.url || "");
+            if (!adres.startsWith(TESLIM_TABAN)) continue;   // yalnızca ürün alanındaki adresler
+            const kart = document.createElement("article");
+            const baslik = document.createElement("strong"); baslik.textContent = String(u.ad || u.slug);
+            const aciklama = document.createElement("p"); aciklama.textContent = String(u.aciklama || "");
+            const etiket = document.createElement("small");
+            etiket.textContent = (u.statik ? "Statik prototip · kurgusal işletme" : "Canlı uygulama") +
+                (Array.isArray(u.canli_icin) && u.canli_icin.length ? " · Canlı için gerekir: " + u.canli_icin.join(", ") : "");
+            const ac = document.createElement("a");
+            ac.href = adres; ac.target = "_blank"; ac.rel = "noopener noreferrer"; ac.className = "dugme"; ac.textContent = "Tarayıcıda aç ↗";
+            kart.append(baslik, aciklama, etiket, ac);
+            kutu.appendChild(kart);
+        }
+        if (veri.guncelleme) { const n = document.createElement("small"); n.textContent = "Son yayın: " + String(veri.guncelleme); kutu.appendChild(n); }
+    } catch (hata) {
+        kutu.textContent = "Teslimat listesi alınamadı (" + hata.message + "). Bağlantıyı kontrol edip Yenile’ye dokunun.";
+    }
+}
+eleman("teslim-yenile").addEventListener("click", teslimatlariYukle);
