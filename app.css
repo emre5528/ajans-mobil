@@ -32,3 +32,5 @@ button:disabled{opacity:.55;cursor:wait}.ikincil{color:#184c43;background:#edf5f
 #karakter{font-size:.8rem;color:var(--muted)}iframe{width:100%;height:76dvh;min-height:390px;border:1px solid var(--line);border-radius:1rem;background:white}
 #sayfalar{display:flex;gap:.4rem;overflow-x:auto}#sayfalar button{white-space:nowrap}#sayfalar [aria-pressed=true]{background:var(--dark)}
 @media(max-width:640px){.kartlar{grid-template-columns:repeat(2,minmax(0,1fr))}.alt a{min-width:62px}.ust{min-height:56px}input,textarea{font-size:16px}}
+#teslim-liste{display:grid;gap:.8rem}#teslim-liste article{display:flex;flex-direction:column;gap:.35rem}#teslim-liste small{color:#56706c}
+a.dugme{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 1.1rem;border-radius:.8rem;background:var(--dark);color:white;font-weight:700;text-decoration:none;align-self:flex-start}

@@ -6,7 +6,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#111c22">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; worker-src 'self'; manifest-src 'self'; frame-src 'self' about:; connect-src https://api.github.com https://*.blob.core.windows.net; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; worker-src 'self'; manifest-src 'self'; frame-src 'self' about:; connect-src https://api.github.com https://*.blob.core.windows.net https://emre5528.github.io; form-action 'none'; base-uri 'none'">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
@@ -23,6 +23,7 @@
 <a class="kart" href="#musteri-bul"><span class="simge">⌕</span><strong>Müşteri Bul</strong><span>Sektöre göre fırsat araştır</span></a>
 <a class="kart" href="#musteriler"><span class="simge">▤</span><strong>Müşterilerim</strong><span>Müşteri dosyaları ve geçmiş</span></a>
 <a class="kart" href="#devam-eden"><span class="simge">◷</span><strong>Devam eden işler</strong><span>Görev durumu ve sonraki adımlar</span></a>
+<a class="kart" href="#teslimatlar"><span class="simge">↗</span><strong>Teslimatlar</strong><span>Ürün bağlantıları · tarayıcıda açılır</span></a>
 <a class="kart" href="#tamamlanan"><span class="simge">✓</span><strong>Tamamlanan projeler</strong><span>Web siteleri, demolar ve sunumlar</span></a>
 <a class="kart" href="#firsatlar"><span class="simge">↗</span><strong>Satış Fırsatları</strong><span>Adaylar ve ticari araştırmalar</span></a>
 <a class="kart" href="#raporlar"><span class="simge">▥</span><strong>Ajans raporları</strong><span>Görev ve proje özeti</span></a>
@@ -71,6 +72,12 @@
 <section data-ekran="raporlar" hidden>
 <a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Ajans raporları</h1><button type="button" class="ikincil esitle">Yenile</button></div>
 <div id="raporlar" class="kartlar"></div>
+</section>
+<section data-ekran="teslimatlar" hidden>
+<a class="geri" href="#ana">‹ Ana sayfa</a><h1>Teslimatlar</h1>
+<p class="aciklama">Her ürün kendi HTTPS adresinde, Safari veya Chrome’da tam ekran açılır. Bunlar statik etkileşimli prototiplerdir; sunucu gerektiren canlı özellikler her ürünün altında yazar. Gerçek işletmelere ait çalışmalar herkese açık yayımlanmaz, şifreli paket olarak <a href="#tamamlanan">Tamamlanan projeler</a> bölümünde kalır.</p>
+<div id="teslim-liste" class="liste" aria-live="polite"><p>Yükleniyor…</p></div>
+<p><button type="button" id="teslim-yenile" class="ikincil">Yenile</button> <a id="teslim-katalog" href="https://emre5528.github.io/ajans-urunler/" target="_blank" rel="noopener noreferrer">Tüm katalog ↗</a></p>
 </section>
 <section data-ekran="sunum" hidden>
 <a class="geri" href="#tamamlanan">‹ Tamamlanan projeler</a><h1>Proje görüntüleyici</h1>
