@@ -1,6 +1,6 @@
 "use strict";
-const surum = "ajans-mobil-shell-v1";
-const dosyalar = ["./", "index.html", "app.js", "app.css", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
+const surum = "ajans-mobil-shell-v2";
+const dosyalar = ["./", "index.html", "app.js?v=2", "app.css?v=2", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 const adresler = new Set(dosyalar.map(ad => new URL(ad, self.registration.scope).href));
 
 self.addEventListener("install", event => {

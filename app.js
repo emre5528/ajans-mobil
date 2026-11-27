@@ -127,12 +127,26 @@ async function dosyaOku(dosya) {
     return baytlar;
 }
 
-const gorunum = {musteriler: [], gorevler: [], yuklendi: false};
+const gorunum = {musteriler: [], gorevler: [], firsatlar: [], yuklendi: false};
+let talimatKipi = "yeni-gorev";
+const taslaklar = new Map();
 
 function ekran(ad) {
     const hedef = document.querySelector(`[data-ekran="${ad}"]`);
     if (!hedef) return;
     for (const sayfa of document.querySelectorAll("[data-ekran]")) sayfa.hidden = sayfa !== hedef;
+    const form = eleman("talep");
+    form.hidden = !hedef.hasAttribute("data-talimat");
+    if (!form.hidden) {
+        const kip = ad === "musteri-bul" ? ad : "yeni-gorev";
+        if (kip !== talimatKipi) {
+            taslaklar.set(talimatKipi, eleman("metin").value);
+            talimatKipi = kip;
+            eleman("metin").value = taslaklar.get(kip) || "";
+            eleman("metin").dispatchEvent(new Event("input"));
+        }
+        hedef.append(form);
+    }
     for (const link of document.querySelectorAll(".alt a")) {
         if (link.hash === "#" + ad || ad === "musteri" && link.hash === "#musteriler")
             link.setAttribute("aria-current", "page");
@@ -158,7 +172,7 @@ function rota() {
         eleman("teknik").open = true;
         ekran("ayarlar");
     } else {
-        ekran(["ana", "yeni", "musteriler", "devam-eden", "tamamlanan", "raporlar", "sunum", "ayarlar"].includes(hash) ? hash : "ana");
+        ekran(["ana", "yeni", "musteri-bul", "musteriler", "devam-eden", "tamamlanan", "firsatlar", "raporlar", "sunum", "ayarlar"].includes(hash) ? hash : "ana");
     }
 }
 
@@ -198,6 +212,8 @@ function gorevSatiri(g, proje = false) {
     }
     if (proje && /^IS-[0-9]{4,}$/.test(g.kod)) {
         e.append(dugme("Müşteri dosyasını aç", () => gezin("musteri/" + g.kod)));
+    } else if (!g.kod && g.asamalar?.some(a => a.ad === "genel-arastirma") && /^AJ-[0-9]{8}-[0-9]{3,}$/.test(g.id)) {
+        e.append(dugme("Araştırmayı aç", () => githubAkisi("musteri-dosyasi", {genel: g.id})));
     } else if (/^AJ-[0-9]{8}-[0-9]{3,}$/.test(g.id)) {
         e.append(dugme("Sürdür", () => {
             gezin("devam-eden");
@@ -228,6 +244,11 @@ function panoGuncelle(paket) {
                 gorunum.musteriler.push({kod: g.kod, ad: g.isletme || g.kod});
         }
     }
+    if (Array.isArray(paket.firsatlar)) {
+        const kimlikler = new Set(paket.firsatlar.map(f => f.id));
+        gorunum.firsatlar = Array.isArray(paket.musteriler) ? paket.firsatlar :
+            [...paket.firsatlar, ...gorunum.firsatlar.filter(f => !kimlikler.has(f.id))];
+    }
     gorunum.yuklendi = true;
     panoCiz();
     const musteriRotasi = /^#musteri\/(IS-[0-9]{4,})$/.exec(location.hash);
@@ -244,6 +265,11 @@ function panoCiz() {
     }), "Henüz müşteri kaydı bulunamadı.");
     listele("acik-isler", acik.map(g => gorevSatiri(g)), "Devam eden iş yok.");
     listele("biten-isler", proje.map(g => gorevSatiri(g, true)), "Tamamlanan sunum bulunamadı.");
+    listele("firsatlar", gorunum.firsatlar.map(f => {
+        const e = satir([f.sektor, f.konum].filter(Boolean).join(" · "), f.id + " · " + f.aday_sayisi + " aday");
+        if (/^AJ-[0-9]{8}-[0-9]{3,}$/.test(f.id)) e.append(dugme("Araştırmayı aç", () => githubAkisi("musteri-dosyasi", {genel:f.id})));
+        return e;
+    }), "Henüz kayıtlı satış araştırması yok.");
     listele("raporlar", gorunum.yuklendi ? [
         ["Müşteriler", gorunum.musteriler.length], ["Listelenen görevler", gorunum.gorevler.length],
         ["Devam eden işler", acik.length], ["Sunumu hazır görevler", proje.length],
@@ -520,7 +546,8 @@ eleman("kilitle").addEventListener("click", () => {
     eleman("metin").dispatchEvent(new Event("input"));
     eleman("github-token").dispatchEvent(new Event("input"));
     eleman("cikti").hidden = true;
-    Object.assign(gorunum, {musteriler: [], gorevler: [], yuklendi: false});
+    taslaklar.clear();
+    Object.assign(gorunum, {musteriler: [], gorevler: [], firsatlar: [], yuklendi: false});
     eleman("musteri-baslik").textContent = "Müşteri dosyası";
     eleman("musteri-icerik").replaceChildren();
     sunumuTemizle();
@@ -570,7 +597,7 @@ if (!tanima) {
     });
 }
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=2").catch(() => {});
 
 eleman("github-ac").addEventListener("click", async () => {
     if (githubIslemSuruyor) return;
@@ -612,7 +639,10 @@ for (const id of ["talep", "devam"]) {
         eleman("kod").value = "";
         try {
             const istek = Object.fromEntries(new FormData(event.currentTarget));
-            if (id === "talep") istek.claude_plan = eleman("claude-plan").checked;
+            if (id === "talep") {
+                istek.claude_plan = true;
+                istek.kip = talimatKipi;
+            }
             if (!eleman("parola").value) {
                 gezin("ayarlar");
                 throw new Error("Ayarlar’dan mobil paket parolasını girin; talimat formda kalır.");

@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="app.css?v=2">
 <title>Ajans Mobil</title>
 </head>
 <body>
@@ -18,33 +18,31 @@
 <main>
 <p id="durum" role="status" aria-live="polite" tabindex="-1"></p>
 <section data-ekran="ana">
-<div class="hero"><div class="hero-iz"></div><div class="hero-icerik"><h1>Ajans paneli</h1><p>Müşterileri, görevleri ve sunumları tek yerden yönetin.</p><a class="buton acik" href="#yeni">＋ Yeni müşteri oluştur</a></div></div>
+<div class="hero"><div class="hero-iz"></div><div class="hero-icerik"><h1>Ajans paneli</h1><p>Müşterileri, görevleri ve sunumları tek yerden yönetin.</p><a class="buton acik" href="#yeni">＋ Yeni Görev</a></div></div>
 <div class="kartlar">
+<a class="kart" href="#musteri-bul"><span class="simge">⌕</span><strong>Müşteri Bul</strong><span>Sektöre göre fırsat araştır</span></a>
 <a class="kart" href="#musteriler"><span class="simge">▤</span><strong>Müşterilerim</strong><span>Müşteri dosyaları ve geçmiş</span></a>
 <a class="kart" href="#devam-eden"><span class="simge">◷</span><strong>Devam eden işler</strong><span>Görev durumu ve sonraki adımlar</span></a>
 <a class="kart" href="#tamamlanan"><span class="simge">✓</span><strong>Tamamlanan projeler</strong><span>Web siteleri, demolar ve sunumlar</span></a>
+<a class="kart" href="#firsatlar"><span class="simge">↗</span><strong>Satış Fırsatları</strong><span>Adaylar ve ticari araştırmalar</span></a>
 <a class="kart" href="#raporlar"><span class="simge">▥</span><strong>Ajans raporları</strong><span>Görev ve proje özeti</span></a>
 <a class="kart" href="#ayarlar"><span class="simge">⚙</span><strong>Ayarlar</strong><span>Güvenli bağlantı ve erişim</span></a>
 </div>
 </section>
-<section data-ekran="yeni" hidden>
-<a class="geri" href="#ana">‹ Ajans paneli</a><h1>Yeni müşteri oluştur</h1>
-<form id="talep" class="panel">
-<label for="isletme">Müşteri adı</label>
-<input id="isletme" name="isletme" required maxlength="160" autocomplete="off" placeholder="Müşteri adı veya mevcut IS kodu">
-<label for="metin">Görev talimatı</label>
-<textarea id="metin" name="talep" required maxlength="12000" autocomplete="off" rows="9" placeholder="İhtiyacı, beklenen çıktıları ve öncelikleri anlatın."></textarea>
-<div class="satir"><button type="button" id="mikrofon" class="ikincil">Mikrofonla yaz</button><span id="karakter">0 / 12.000</span></div>
-<p class="yardim" id="mikrofon-bilgi" aria-live="polite">iPhone klavyesinin mikrofonuyla bu alana doğrudan dikte edebilirsiniz. Siri gerekmez.</p>
-<details class="ek-alanlar"><summary>İsteğe bağlı müşteri bilgileri</summary>
-<label for="web">Doğruladığınız resmî site</label><input id="web" name="web" type="url" maxlength="400" autocomplete="off">
-<label for="sehir">Şehir</label><input id="sehir" name="sehir" maxlength="100" autocomplete="off">
-</details>
-<label class="onay"><input id="claude-plan" type="checkbox" checked> Talimatı Claude ile planla</label>
-<p class="yardim">Claude, talimatı mevcut ajan aşamalarına eşler. Talimata parola veya özel müşteri bilgisi eklemeyin.</p>
-<button id="talep-gonder">Talebi şifrele</button>
-</form>
+<section data-ekran="yeni" data-talimat hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><h1>Yeni Görev</h1>
 </section>
+<section data-ekran="musteri-bul" data-talimat hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><h1>Müşteri Bul</h1>
+</section>
+<form id="talep" class="panel" hidden>
+<label for="metin">Talimat</label>
+<textarea id="metin" name="talep" required maxlength="12000" autocomplete="off" rows="10" placeholder="Hedefinizi kendi sözlerinizle anlatın."></textarea>
+<div class="satir"><button type="button" id="mikrofon" class="ikincil">Mikrofonla yaz</button><span id="karakter">0 / 12.000</span></div>
+<p class="yardim" id="mikrofon-bilgi" aria-live="polite">iPhone klavyesinin mikrofonuyla da dikte edebilirsiniz.</p>
+<p class="yardim">Talimat, planlama için Claude’a iletilir. Parola veya özel kişisel bilgi eklemeyin.</p>
+<button id="talep-gonder">Görevi başlat</button>
+</form>
 <section data-ekran="musteriler" hidden>
 <a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Müşterilerim</h1><button type="button" class="ikincil esitle">Yenile</button></div>
 <div id="musteriler" class="liste"></div>
@@ -65,6 +63,10 @@
 <section data-ekran="tamamlanan" hidden>
 <a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Tamamlanan projeler</h1><button type="button" class="ikincil esitle">Yenile</button></div>
 <div id="biten-isler" class="liste"></div>
+</section>
+<section data-ekran="firsatlar" hidden>
+<a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Satış Fırsatları</h1><button type="button" class="ikincil esitle">Yenile</button></div>
+<div id="firsatlar" class="liste"></div>
 </section>
 <section data-ekran="raporlar" hidden>
 <a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Ajans raporları</h1><button type="button" class="ikincil esitle">Yenile</button></div>
@@ -97,6 +99,6 @@
 <nav class="alt" aria-label="Ana gezinme">
 <a href="#ana"><b>⌂</b><span>Ana ekran</span></a><a href="#musteriler"><b>▤</b><span>Müşteriler</span></a><a href="#devam-eden"><b>◷</b><span>İşler</span></a><a href="#ayarlar"><b>⚙</b><span>Ayarlar</span></a>
 </nav>
-<script src="app.js" defer></script>
+<script src="app.js?v=2" defer></script>
 </body>
 </html>
