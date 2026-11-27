@@ -17,6 +17,7 @@ const durumlar = {
 
 function parola() {
     const deger = eleman("parola").value;
+    if (!deger) return null;                      // parolasız cihaz kipi
     if (deger.length < 32 || !crypto.subtle) {
         throw new Error("HTTPS ve en az 32 karakterli mobil paket parolası gerekli.");
     }
@@ -48,6 +49,8 @@ async function istekSifrele(istek, deger) {
 }
 
 async function paketAc(paket, deger) {
+    if (v2Mi(paket)) return zarfAc(paket);          // parolasız cihaz paketi
+    if (!deger) throw new Error("Bu eski paket mobil paket parolası ister (Ayarlar → Eski paketler).");
     if (paket.length < 45 || paket[0] !== 1) throw new Error("Paket biçimi geçersiz.");
     const sonuc = await crypto.subtle.decrypt(
         {name: "AES-GCM", iv: paket.slice(17, 29), additionalData: encoder.encode("ajans-sunum-v1")},
@@ -55,6 +58,105 @@ async function paketAc(paket, deger) {
     );
     return JSON.parse(decoder.decode(sonuc));
 }
+
+
+// ---------------------------------------------------------------- Cihaz oturumu (parolasız, zarf v2)
+// GitHub belirteci, dışa aktarılamayan bir AES-GCM anahtarıyla şifrelenip IndexedDB'de saklanır.
+// Cihazın ECDH P-256 özel anahtarı dışa aktarılamaz; sonuçlar yalnızca bu cihazda açılır.
+const TUZ = encoder.encode("ajans-cihaz-v2-tuz");
+const GOREV_AMAC = encoder.encode("ajans-gorev-v2");
+const SONUC_AMAC = encoder.encode("ajans-sonuc-v2");
+const b64u = baytlar => btoa(Array.from(new Uint8Array(baytlar), b => String.fromCharCode(b)).join(""))
+    .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+const b64uCoz = metin => {
+    if (!/^[A-Za-z0-9_-]+$/.test(metin)) throw new Error("Paket biçimi geçersiz.");
+    const s = atob(metin.replaceAll("-", "+").replaceAll("_", "/") + "===".slice((metin.length + 3) % 4));
+    return Uint8Array.from(s, c => c.charCodeAt(0));
+};
+const birlestir = (...parcalar) => {
+    const sonuc = new Uint8Array(parcalar.reduce((t, p) => t + p.length, 0));
+    let i = 0;
+    for (const p of parcalar) { sonuc.set(p, i); i += p.length; }
+    return sonuc;
+};
+
+function depo(islem) {
+    return new Promise((tamam, hata) => {
+        const ac = indexedDB.open("ajans-cihaz", 1);
+        ac.onupgradeneeded = () => ac.result.createObjectStore("oturum");
+        ac.onerror = () => hata(new Error("Cihaz deposu açılamadı (özel tarama kapalı olmalı)."));
+        ac.onsuccess = () => {
+            const tx = ac.result.transaction("oturum", "readwrite");
+            const s = tx.objectStore("oturum");
+            const r = islem(s);
+            tx.oncomplete = () => { ac.result.close(); tamam(r?.result); };
+            tx.onerror = () => { ac.result.close(); hata(new Error("Cihaz deposu yazılamadı.")); };
+        };
+    });
+}
+const depoAl = ad => depo(s => s.get(ad));
+const depoYaz = (ad, deger) => depo(s => s.put(deger, ad));
+
+async function cihazAnahtari() {
+    let cift = await depoAl("cihaz");
+    if (!cift) {
+        cift = await crypto.subtle.generateKey({name: "ECDH", namedCurve: "P-256"}, false, ["deriveBits"]);
+        await depoYaz("cihaz", cift);
+    }
+    return {cift, ham: new Uint8Array(await crypto.subtle.exportKey("raw", cift.publicKey))};
+}
+
+async function belirtecKaydet(belirtec) {
+    if (!/^github_pat_[A-Za-z0-9_]{20,}$/.test(belirtec)) throw new Error("Fine-grained GitHub belirteci (github_pat_…) girin.");
+    const anahtar = await crypto.subtle.generateKey({name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const sifreli = await crypto.subtle.encrypt({name: "AES-GCM", iv}, anahtar, encoder.encode(belirtec));
+    await depoYaz("belirtec", {anahtar, iv, sifreli});
+}
+
+async function kayitliBelirtec() {
+    const k = await depoAl("belirtec").catch(() => null);
+    if (!k) return "";
+    try {
+        return decoder.decode(await crypto.subtle.decrypt({name: "AES-GCM", iv: k.iv}, k.anahtar, k.sifreli));
+    } catch { return ""; }
+}
+
+async function oturumKapat() {
+    await new Promise(tamam => { const r = indexedDB.deleteDatabase("ajans-cihaz"); r.onsuccess = r.onerror = r.onblocked = () => tamam(); });
+}
+
+async function ortakAnahtar(gizli, karsiHam, e, aliciHam, amac) {
+    const karsi = await crypto.subtle.importKey("raw", karsiHam, {name: "ECDH", namedCurve: "P-256"}, false, []);
+    const bitler = await crypto.subtle.deriveBits({name: "ECDH", public: karsi}, gizli, 256);
+    const kaynak = await crypto.subtle.importKey("raw", bitler, "HKDF", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({name: "HKDF", hash: "SHA-256", salt: TUZ, info: birlestir(amac, e, aliciHam)},
+        kaynak, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
+}
+
+async function zarfSifrele(veri, sunucuHam) {
+    const {ham: cihazHam} = await cihazAnahtari();
+    const gecici = await crypto.subtle.generateKey({name: "ECDH", namedCurve: "P-256"}, false, ["deriveBits"]);
+    const e = new Uint8Array(await crypto.subtle.exportKey("raw", gecici.publicKey));
+    const anahtar = await ortakAnahtar(gecici.privateKey, sunucuHam, e, sunucuHam, GOREV_AMAC);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const c = await crypto.subtle.encrypt({name: "AES-GCM", iv, additionalData: GOREV_AMAC}, anahtar,
+        encoder.encode(JSON.stringify(veri)));
+    return b64u(encoder.encode(JSON.stringify({v: 2, e: b64u(e), iv: b64u(iv), c: b64u(c), d: b64u(cihazHam)})));
+}
+
+async function zarfAc(baytlar) {
+    const zarf = JSON.parse(decoder.decode(b64uCoz(decoder.decode(baytlar).trim())));
+    if (zarf?.v !== 2) throw new Error("Paket biçimi geçersiz.");
+    const {cift, ham} = await cihazAnahtari();
+    const e = b64uCoz(zarf.e);
+    const anahtar = await ortakAnahtar(cift.privateKey, e, e, ham, SONUC_AMAC);
+    const duz = await crypto.subtle.decrypt({name: "AES-GCM", iv: b64uCoz(zarf.iv), additionalData: SONUC_AMAC},
+        anahtar, b64uCoz(zarf.c));
+    return JSON.parse(decoder.decode(duz));
+}
+
+const v2Mi = baytlar => baytlar.length > 20 && baytlar[0] !== 1 && /^[A-Za-z0-9_-]/.test(String.fromCharCode(baytlar[0]));
 
 async function zipPaketiOku(baytlar) {
     const hata = () => new Error("ZIP geçersiz. Yalnızca Ajans Mobil çalıştırmasının özgün ZIP çıktısını seçin.");
@@ -81,7 +183,7 @@ async function zipPaketiOku(baytlar) {
         yerel + 30 > merkez || u32(yerel) !== 0x04034b50) throw hata();
 
     const ad = decoder.decode(baytlar.subarray(merkez + 46, merkez + 46 + adBoyutu));
-    if (!["ajans-sunum.ajans", "ajans-durum.ajans", "ajans-prova.ajans"].includes(ad) ||
+    if (!["ajans-sunum.ajans", "ajans-durum.ajans", "ajans-prova.ajans", "ajans-anahtar.txt"].includes(ad) ||
         u16(yerel + 6) !== bayrak || u16(yerel + 8) !== yontem ||
         u16(yerel + 26) !== adBoyutu || yerel + 30 + adBoyutu > merkez ||
         decoder.decode(baytlar.subarray(yerel + 30, yerel + 30 + adBoyutu)) !== ad) throw hata();
@@ -145,7 +247,8 @@ function ekran(ad) {
             eleman("metin").value = taslaklar.get(kip) || "";
             eleman("metin").dispatchEvent(new Event("input"));
         }
-        hedef.append(form);
+        const hero = hedef.querySelector(".hero");
+        if (hero) hero.after(form); else hedef.append(form);
     }
     for (const link of document.querySelectorAll(".alt a")) {
         if (link.hash === "#" + ad || ad === "musteri" && link.hash === "#musteriler")
@@ -392,12 +495,51 @@ window.addEventListener("message", event => {
     if (Number.isInteger(sira) && sira >= 0) eleman("sayfalar").children[sira + 1]?.click();
 });
 
+let oturumBelirteci = "";
 function githubBelirteci() {
-    const belirtec = eleman("github-token").value.trim();
+    const belirtec = oturumBelirteci || eleman("github-token").value.trim();
     if (!/^github_pat_[A-Za-z0-9_]+$/.test(belirtec)) {
-        throw new Error("Bu oturum için fine-grained GitHub belirtecini girin.");
+        gezin("ayarlar");
+        throw new Error("Bu cihazı bir kez bağlayın: Ayarlar → Cihazı bağla.");
     }
     return belirtec;
+}
+
+async function oturumuYukle() {
+    oturumBelirteci = await kayitliBelirtec();
+    const bitis = localStorage.getItem("ajans-belirtec-bitis");
+    eleman("oturum-durum").textContent = oturumBelirteci
+        ? "Bu cihaz bağlı." + (bitis ? ` Belirteç bitişi: ${bitis}. Süre dolunca yeniden bağlamanız gerekir.` : "")
+        : "Cihaz bağlı değil. Görev başlatmak için bir kez bağlayın.";
+    eleman("oturum-kapat").hidden = !oturumBelirteci;
+}
+
+async function sunucuAnahtari(belirtec) {
+    const kayitli = localStorage.getItem("ajans-sunucu-anahtari");
+    if (kayitli && /^[A-Za-z0-9_-]{86,88}$/.test(kayitli)) return b64uCoz(kayitli);
+    eleman("durum").textContent = "Cihaz güvenli anahtarı GitHub'dan alınıyor (yalnızca ilk kez)…";
+    const cevap = await github("/workflows/mobil.yml/dispatches", belirtec, {ref: "main", inputs: {islem: "cihaz-anahtari"}});
+    const numara = String((await cevap.json().catch(() => ({}))).workflow_run_id);
+    if (!calistirmaKodu.test(numara)) throw new Error("Anahtar çalıştırması başlatılamadı.");
+    for (let deneme = 0; deneme < 30; deneme++) {
+        await new Promise(tamam => setTimeout(tamam, deneme ? 6000 : 3000));
+        const is = await (await github("/runs/" + numara, belirtec)).json();
+        if (is.status !== "completed") continue;
+        if (is.conclusion !== "success") throw new Error("Anahtar çalıştırması başarısız oldu.");
+        const liste = await (await github("/runs/" + numara + "/artifacts", belirtec)).json();
+        const a = liste.artifacts.find(x => x.name === "ajans-anahtar" && !x.expired);
+        if (!a) throw new Error("Anahtar dosyası bulunamadı.");
+        const metin = decoder.decode(await githubPaketi(await github("/artifacts/" + a.id + "/zip", belirtec, null, true))).trim();
+        if (!/^[A-Za-z0-9_-]{86,88}$/.test(metin)) throw new Error("Sunucu anahtarı biçimi geçersiz.");
+        localStorage.setItem("ajans-sunucu-anahtari", metin);
+        return b64uCoz(metin);
+    }
+    throw new Error("Anahtar çalıştırması zamanında bitmedi; birazdan tekrar deneyin.");
+}
+
+async function istekPaketi(istek, belirtec, paketParolasi) {
+    if (paketParolasi) return istekSifrele(istek, paketParolasi);   // eski parola kipi (isteğe bağlı)
+    return zarfSifrele(istek, await sunucuAnahtari(belirtec));
 }
 
 async function github(rota, belirtec, veri, zip = false) {
@@ -418,7 +560,12 @@ async function github(rota, belirtec, veri, zip = false) {
     } catch {
         throw new Error("GitHub bağlantısı doğrulanamadı. Tekrar göndermeden önce özel çalıştırmaları kontrol edin.");
     }
-    if (donus.status === 404 || donus.status === 403 || donus.status === 401) {
+    const bitis = donus.headers.get("github-authentication-token-expiration");
+    if (bitis) localStorage.setItem("ajans-belirtec-bitis", bitis.slice(0, 16));
+    if (donus.status === 401) {
+        throw new Error("Oturum süresi doldu veya belirteç geçersiz. Ayarlar → Cihazı bağla ile yeniden yetkilendirin.");
+    }
+    if (donus.status === 404 || donus.status === 403) {
         throw new Error("GitHub erişimi reddedildi. Belirtecin bu özel depoya ve Actions’a yetkisini kontrol edin.");
     }
     if (!donus.ok) throw new Error(`GitHub isteği tamamlanamadı (HTTP ${donus.status}).`);
@@ -485,15 +632,41 @@ async function githubSonucu(kod, belirtec, paketParolasi, bekle) {
 
 function githubKilit(durum) {
     githubIslemSuruyor = durum;
-    for (const id of ["github-ac", "ac", "talep-gonder", "devam-gonder", "github-token", "kilitle"]) eleman(id).disabled = durum;
+    for (const id of ["github-ac", "ac", "talep-gonder", "devam-gonder", "github-token", "kilitle", "cihaz-bagla"]) eleman(id).disabled = durum;
     for (const e of document.querySelectorAll(".esitle")) e.disabled = durum;
 }
 
 eleman("github-token").addEventListener("input", () => {
-    const bagli = Boolean(eleman("github-token").value.trim());
-    eleman("talep-gonder").textContent = bagli ? "Görevi başlat" : "Talebi şifrele";
-    eleman("devam-gonder").textContent = bagli ? "Görevi sürdür" : "Görev kodunu şifrele";
+    eleman("talep-gonder").textContent = "Başlat";
+    eleman("devam-gonder").textContent = "Görevi sürdür";
 });
+
+eleman("cihaz-bagla").addEventListener("click", async () => {
+    const durum = eleman("durum");
+    githubKilit(true);
+    try {
+        const belirtec = eleman("github-token").value.trim();
+        await belirtecKaydet(belirtec);
+        await github("/workflows/mobil.yml", belirtec);          // yetki doğrulaması
+        eleman("github-token").value = "";
+        await oturumuYukle();
+        await sunucuAnahtari(oturumBelirteci);
+        durum.textContent = "Cihaz bağlandı. Artık yalnızca komutunuzu yazıp Başlat’a dokunun.";
+        gezin("ana");
+    } catch (hata) {
+        durum.textContent = hata.message;
+    } finally {
+        githubKilit(false);
+    }
+});
+eleman("oturum-kapat").addEventListener("click", async () => {
+    await oturumKapat();
+    for (const a of ["ajans-sunucu-anahtari", "ajans-belirtec-bitis"]) localStorage.removeItem(a);
+    oturumBelirteci = "";
+    await oturumuYukle();
+    eleman("durum").textContent = "Bu cihazın oturumu kapatıldı; kayıtlı belirteç ve cihaz anahtarı silindi.";
+});
+oturumuYukle().catch(() => {});
 
 async function baslat(islem, kod, belirtec, paketParolasi) {
     const girdiler = kod ? {islem, paket: kod} : {islem};
@@ -511,13 +684,11 @@ async function githubAkisi(islem, istek) {
     if (githubIslemSuruyor) return;
     githubKilit(true);
     try {
-        if (!eleman("github-token").value.trim() || !eleman("parola").value) {
-            gezin("ayarlar");
-            throw new Error("Ayarlar’dan güvenli bağlantıyı girin ve yeniden deneyin.");
-        }
+        const belirtec = githubBelirteci();
         const paketParolasi = parola();
-        const kod = istek ? await istekSifrele(istek, paketParolasi) : "";
-        await baslat(islem, kod, githubBelirteci(), paketParolasi);
+        const kod = istek ? await istekPaketi(istek, belirtec, paketParolasi)
+            : (paketParolasi ? "" : await istekPaketi({}, belirtec, null));   // yanıt bu cihaza şifrelenir
+        await baslat(islem, kod, belirtec, paketParolasi);
     } catch (hata) {
         eleman("durum").textContent = hata instanceof DOMException ? "Şifreli sonuç açılamadı." : hata.message;
     } finally {
@@ -532,9 +703,8 @@ for (const e of document.querySelectorAll(".esitle")) e.addEventListener("click"
 
 eleman("baglanti-kaydet").addEventListener("click", () => {
     try {
-        parola();
-        if (eleman("github-token").value.trim()) githubBelirteci();
-        eleman("durum").textContent = "Güvenli erişim bilgileri bu sekmede hazır.";
+        if (!parola()) throw new Error("Eski paketler için mobil paket parolasını girin.");
+        eleman("durum").textContent = "Parola yalnızca bu sekmede, eski paketleri açmak için hazır.";
         gezin("ana");
     } catch (hata) {
         eleman("durum").textContent = hata.message;
@@ -597,7 +767,7 @@ if (!tanima) {
     });
 }
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=2").catch(() => {});
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=3").catch(() => {});
 
 eleman("github-ac").addEventListener("click", async () => {
     if (githubIslemSuruyor) return;
@@ -643,14 +813,17 @@ for (const id of ["talep", "devam"]) {
                 istek.claude_plan = true;
                 istek.kip = talimatKipi;
             }
-            if (!eleman("parola").value) {
-                gezin("ayarlar");
-                throw new Error("Ayarlar’dan mobil paket parolasını girin; talimat formda kalır.");
-            }
             const paketParolasi = parola();
-            const kod = await istekSifrele(istek, paketParolasi);
+            const belirtecVar = Boolean(oturumBelirteci || eleman("github-token").value.trim());
+            if (!belirtecVar && !paketParolasi) {
+                gezin("ayarlar");
+                throw new Error("Bu cihazı bir kez bağlayın (Ayarlar → Cihazı bağla); talimat formda kalır.");
+            }
+            const kod = belirtecVar ? await istekPaketi(istek, githubBelirteci(), paketParolasi)
+                : await istekSifrele(istek, paketParolasi);
             if (kod.length > 60000) throw new Error("Şifreli talep fazla uzun. Metni kısaltın.");
-            if (eleman("github-token").value.trim()) {
+            if (belirtecVar) {
+                durum.textContent = "Görev başlatıldı. Bilgisayarınız kapalı olsa da GitHub'da çalışır.";
                 await baslat("sifreli-talep", kod, githubBelirteci(), paketParolasi);
             } else {
                 eleman("kod").value = kod;
@@ -676,33 +849,3 @@ eleman("kopyala").addEventListener("click", async () => {
         eleman("durum").textContent = "Seçili şifreli metni kopyalayın.";
     }
 });
-
-
-const kasaAdi = "ajans-kasa-v1";
-async function kasaAnahtari(p, salt) {
- const k=await crypto.subtle.importKey("raw",encoder.encode(p),"PBKDF2",false,["deriveKey"]);
- return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:600000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
-}
-function kasaPaneli(){
- const panel=document.createElement("div");panel.className="panel";
- const baslik=yazi("h2","Kişisel parola");const p=document.createElement("input");p.type="password";p.autocomplete="current-password";p.placeholder="Kişisel parola (en az 12 karakter)";
- const durum=eleman("durum");
- const kayit=dugme("Bu cihazda güvenli kaydet",async()=>{
- try{if(p.value.length<12)throw Error("En az 12 karakterli parola kullanın.");
- const veri={parola:parola(),token:githubBelirteci()};
- const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
- const c=await crypto.subtle.encrypt({name:"AES-GCM",iv},await kasaAnahtari(p.value,salt),encoder.encode(JSON.stringify(veri)));
- localStorage.setItem(kasaAdi,JSON.stringify({salt:[...salt],iv:[...iv],c:[...new Uint8Array(c)]}));p.value="";durum.textContent="Cihaz kaydedildi.";gezin("ana");
- }catch(e){durum.textContent=e.message;}
- });
- const ac=dugme("Giriş yap",async()=>{try{
- const v=JSON.parse(localStorage.getItem(kasaAdi));if(!v)throw Error("Önce cihazı kaydedin.");
- const d=JSON.parse(decoder.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:new Uint8Array(v.iv)},await kasaAnahtari(p.value,new Uint8Array(v.salt)),new Uint8Array(v.c))));
- eleman("parola").value=d.parola;eleman("github-token").value=d.token;eleman("github-token").dispatchEvent(new Event("input"));p.value="";durum.textContent="Oturum açıldı.";gezin("ana");
- }catch{durum.textContent="Parola yanlış veya cihaz kaydı okunamadı.";}});
- const sil=dugme("Cihaz kaydını sil",()=>{if(confirm("Cihaz kaydı silinsin mi?")){localStorage.removeItem(kasaAdi);eleman("kilitle").click();location.reload();}});
- panel.append(baslik,p,ac,kayit,sil);eleman("github-ayarlari").before(panel);
- if(localStorage.getItem(kasaAdi)){eleman("github-ayarlari").hidden=true;kayit.hidden=true;gezin("ayarlar");}
- else{ac.hidden=true;sil.hidden=true;}
-}
-kasaPaneli();
