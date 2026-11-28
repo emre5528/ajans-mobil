@@ -891,8 +891,9 @@ const URETIM_DURUM = "https://emre5528.github.io/ajans-urunler/durum/";
 const ASAMA_AD = {plan: "Plan", arastirma: "Araştırma (Gemini)", iskele: "İskele", fotograf: "Lisanslı fotoğraflar", uretim: "Tasarım ve kod (Claude)",
     kalite: "Kalite kapısı", gorsel_inceleme: "Görsel inceleme", teknik_inceleme: "Teknik inceleme", senaryo: "Uçtan uca test",
     testler: "Python testleri", imza: "CI imzası", yayin: "Yayın", dogrulama: "Canlı doğrulama"};
-const DURUM_AD = {tamamlandi: "Tamamlandı", basarisiz: "Başarısız", calisiyor: "Çalışıyor", yayin_bekliyor: "Yayın bekliyor"};
-const ASAMA_DURUM = {tamamlandi: "✓", basarisiz: "✗ başarısız", atlandi: "atlandı", onariliyor: "onarılıyor", calisiyor: "…"};
+const DURUM_AD = {tamamlandi: "Tamamlandı", basarisiz: "Başarısız", calisiyor: "Çalışıyor", yayin_bekliyor: "Yayın bekliyor", beklemede: "Kuyrukta (limit/erişim)"};
+const ASAMA_DURUM = {tamamlandi: "✓", basarisiz: "✗ başarısız", atlandi: "atlandı", onariliyor: "onarılıyor", calisiyor: "…", beklemede: "⏸ beklemede"};
+function binlik(n) { return new Intl.NumberFormat("tr-TR").format(Math.round(Number(n) || 0)); }
 function uretimKayitlari() { try { return JSON.parse(localStorage.getItem("ajans-uretimler") || "[]"); } catch { return []; } }
 function uretimKaydet(k) {
     const l = uretimKayitlari().filter(x => x.kod !== k.kod);
@@ -923,12 +924,27 @@ function uretimCiz(kutu, d, adimlar) {
     const tur = document.createElement("small");
     tur.textContent = d?.tur ? String(d.tur) : "DEMO · kurgusal ürün · statik prototip";
     baslik.append(tur);
+    if (d?.durum === "beklemede") {
+        const k = document.createElement("p");
+        k.textContent = "Kuyrukta: " + String(d.neden || "model limiti") + (d.yeniden_deneme ? " · yeniden deneme: " + new Date(d.yeniden_deneme).toLocaleString("tr-TR") : "")
+            + " · " + String(d.deneme || 1) + ". deneme. Kaldığı aşamadan otomatik devam eder.";
+        baslik.append(k);
+    }
+    if (d?.olcum) {   // kullanım ölçümü (sır içermez; abonelik kullanımı faturalanmaz)
+        const o = document.createElement("small");
+        o.dataset.testid = "uretim-olcum";
+        o.textContent = "Ölçüm: " + binlik(d.olcum.toplam_token) + " token · " + binlik(d.olcum.cagri) + " model çağrısı · "
+            + binlik((d.olcum.sure_s || 0) / 60) + " dk model süresi";
+        baslik.append(document.createElement("br"), o);
+    }
     kutu.append(baslik);
     const liste = document.createElement("ol");
     if (d?.asamalar?.length) {
         for (const a of d.asamalar) {
             const li = document.createElement("li");
-            li.textContent = (ASAMA_AD[a.ad] || String(a.ad)) + " — " + (ASAMA_DURUM[a.durum] || String(a.durum)) + (a.not ? " · " + String(a.not) : "");
+            const om = d.olcum_asama?.[a.ad];
+            li.textContent = (ASAMA_AD[a.ad] || String(a.ad)) + " — " + (ASAMA_DURUM[a.durum] || String(a.durum)) + (a.not ? " · " + String(a.not) : "")
+                + (om?.toplam_token ? " · " + binlik(om.toplam_token) + " token" : "");
             liste.append(li);
         }
     } else if (adimlar?.length) {
@@ -953,7 +969,7 @@ async function uretimIzle(kayit, belirtec) {
         }
         const d = await uretimDurumuOku(kayit.kod);
         uretimCiz(kutu, d, adimlar);
-        if (d && ["tamamlandi", "basarisiz"].includes(d.durum) && (!is || is.status === "completed")) return d;
+        if (d && ["tamamlandi", "basarisiz", "beklemede"].includes(d.durum) && (!is || is.status === "completed")) return d;
         if (is && is.status === "completed" && !d) {
             uretimCiz(kutu, {durum: "basarisiz", hata: "Çalıştırma durum kaydı yazmadan bitti (" + is.conclusion + ")"}, adimlar);
             return null;
