@@ -23,6 +23,7 @@
 <a class="kart" href="#musteri-bul"><span class="simge">⌕</span><strong>Müşteri Bul</strong><span>Sektöre göre fırsat araştır</span></a>
 <a class="kart" href="#musteriler"><span class="simge">▤</span><strong>Müşterilerim</strong><span>Müşteri dosyaları ve geçmiş</span></a>
 <a class="kart" href="#devam-eden"><span class="simge">◷</span><strong>Devam eden işler</strong><span>Görev durumu ve sonraki adımlar</span></a>
+<a class="kart" href="#urun-uret" data-testid="kart-urun-uret"><span class="simge">✦</span><strong>Ürün üret</strong><span>Bulutta tasarla, denetle, yayımla</span></a>
 <a class="kart" href="#teslimatlar"><span class="simge">↗</span><strong>Teslimatlar</strong><span>Ürün bağlantıları · tarayıcıda açılır</span></a>
 <a class="kart" href="#tamamlanan"><span class="simge">✓</span><strong>Tamamlanan projeler</strong><span>Web siteleri, demolar ve sunumlar</span></a>
 <a class="kart" href="#firsatlar"><span class="simge">↗</span><strong>Satış Fırsatları</strong><span>Adaylar ve ticari araştırmalar</span></a>
@@ -72,6 +73,18 @@
 <section data-ekran="raporlar" hidden>
 <a class="geri" href="#ana">‹ Ajans paneli</a><div class="baslik-satir"><h1>Ajans raporları</h1><button type="button" class="ikincil esitle">Yenile</button></div>
 <div id="raporlar" class="kartlar"></div>
+</section>
+<section data-ekran="urun-uret" hidden>
+<a class="geri" href="#ana">‹ Ana sayfa</a><h1>Ürün üret</h1>
+<p class="aciklama">Kurgusal bir örnek işletme için premium web ürünü bulutta üretilir: araştırma (Gemini), tasarım ve kod (Claude), kalite ve görsel inceleme, bağımsız teknik inceleme, testler ve yayın. Bilgisayarınız kapalıyken çalışır, 30–90 dakika sürebilir. Yayımlanan ürün <strong>DEMO · kurgusal · statik prototiptir</strong>; gerçek işletme bilgisi yazmayın (gerçek müşteri çalışmaları özel akışta kalır).</p>
+<label for="uretim-talep">Ne üretelim?</label>
+<textarea id="uretim-talep" rows="4" maxlength="1500" placeholder="Örn. Kadıköy'de üçüncü nesil kahve dükkânı için menü, sipariş ve etkinlik takvimi olan site" data-testid="uretim-talep"></textarea>
+<label for="uretim-sektor">Sektör (isteğe bağlı)</label>
+<select id="uretim-sektor" data-testid="uretim-sektor"><option value="">Talebe göre seçilsin</option><option value="otel">Otel</option><option value="restoran">Restoran / kafe</option><option value="klinik">Klinik</option><option value="guzellik">Güzellik salonu</option><option value="spor">Spor stüdyosu</option><option value="emlak">Emlak</option></select>
+<p><button type="button" id="uretim-baslat" data-testid="uretim-baslat">Bulutta üret ve yayımla</button></p>
+<div id="uretim-durum" class="liste" aria-live="polite"></div>
+<h2>Önceki üretimler</h2>
+<div id="uretim-gecmis" class="liste"></div>
 </section>
 <section data-ekran="teslimatlar" hidden>
 <a class="geri" href="#ana">‹ Ana sayfa</a><h1>Teslimatlar</h1>
