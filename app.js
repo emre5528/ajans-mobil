@@ -275,8 +275,9 @@ function rota() {
         eleman("teknik").open = true;
         ekran("ayarlar");
     } else {
-        ekran(["ana", "yeni", "musteri-bul", "musteriler", "devam-eden", "tamamlanan", "firsatlar", "raporlar", "sunum", "ayarlar", "teslimatlar"].includes(hash) ? hash : "ana");
+        ekran(["ana", "yeni", "musteri-bul", "musteriler", "devam-eden", "tamamlanan", "firsatlar", "raporlar", "sunum", "ayarlar", "teslimatlar", "urun-uret"].includes(hash) ? hash : "ana");
         if (hash === "teslimatlar") teslimatlariYukle();
+        if (hash === "urun-uret") uretimGecmisi();
     }
 }
 
@@ -883,3 +884,119 @@ async function teslimatlariYukle() {
     }
 }
 eleman("teslim-yenile").addEventListener("click", teslimatlariYukle);
+
+// Ürün üret (Issue #9): bulut üretim zinciri. Talep cihaz zarfıyla şifrelenir; ilerleme GitHub adımlarından,
+// sonuç ajans-urunler/durum/<kod>.json'dan (kişisel veri içermez) okunur.
+const URETIM_DURUM = "https://emre5528.github.io/ajans-urunler/durum/";
+const ASAMA_AD = {plan: "Plan", arastirma: "Araştırma (Gemini)", iskele: "İskele", fotograf: "Lisanslı fotoğraflar", uretim: "Tasarım ve kod (Claude)",
+    kalite: "Kalite kapısı", gorsel_inceleme: "Görsel inceleme", teknik_inceleme: "Teknik inceleme", senaryo: "Uçtan uca test",
+    testler: "Python testleri", imza: "CI imzası", yayin: "Yayın", dogrulama: "Canlı doğrulama"};
+const DURUM_AD = {tamamlandi: "Tamamlandı", basarisiz: "Başarısız", calisiyor: "Çalışıyor", yayin_bekliyor: "Yayın bekliyor"};
+const ASAMA_DURUM = {tamamlandi: "✓", basarisiz: "✗ başarısız", atlandi: "atlandı", onariliyor: "onarılıyor", calisiyor: "…"};
+function uretimKayitlari() { try { return JSON.parse(localStorage.getItem("ajans-uretimler") || "[]"); } catch { return []; } }
+function uretimKaydet(k) {
+    const l = uretimKayitlari().filter(x => x.kod !== k.kod);
+    l.unshift(k);
+    localStorage.setItem("ajans-uretimler", JSON.stringify(l.slice(0, 12)));
+}
+async function uretimDurumuOku(kod) {
+    if (!/^UR-[0-9a-f]{8}$/.test(kod)) return null;
+    try {
+        const y = await fetch(URETIM_DURUM + kod + ".json", {cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer"});
+        return y.ok ? await y.json() : null;
+    } catch { return null; }
+}
+function uretimCiz(kutu, d, adimlar) {
+    kutu.replaceChildren();
+    const baslik = document.createElement("article");
+    const b = document.createElement("strong");
+    b.textContent = d ? (d.urun?.ad ? String(d.urun.ad) + " · " : "") + (DURUM_AD[d.durum] || String(d.durum)) : "Bulutta çalışıyor";
+    baslik.append(b);
+    if (d?.hata) { const h = document.createElement("p"); h.textContent = "Durduğu yer: " + String(d.hata); baslik.append(h); }
+    if (d?.url && String(d.url).startsWith(TESLIM_TABAN)) {
+        const a = document.createElement("a");
+        a.href = d.url; a.target = "_blank"; a.rel = "noopener noreferrer"; a.className = "dugme";
+        a.textContent = d.durum === "tamamlandi" ? "Ürünü aç ↗" : "Yayın adresi ↗";
+        a.dataset.testid = "uretim-baglanti";
+        baslik.append(a);
+    }
+    const tur = document.createElement("small");
+    tur.textContent = d?.tur ? String(d.tur) : "DEMO · kurgusal ürün · statik prototip";
+    baslik.append(tur);
+    kutu.append(baslik);
+    const liste = document.createElement("ol");
+    if (d?.asamalar?.length) {
+        for (const a of d.asamalar) {
+            const li = document.createElement("li");
+            li.textContent = (ASAMA_AD[a.ad] || String(a.ad)) + " — " + (ASAMA_DURUM[a.durum] || String(a.durum)) + (a.not ? " · " + String(a.not) : "");
+            liste.append(li);
+        }
+    } else if (adimlar?.length) {
+        for (const s of adimlar) {
+            const li = document.createElement("li");
+            li.textContent = String(s.name) + " — " + String(s.conclusion || s.status);
+            liste.append(li);
+        }
+    }
+    kutu.append(liste);
+}
+async function uretimIzle(kayit, belirtec) {
+    const kutu = eleman("uretim-durum");
+    for (let i = 0; i < 480; i++) {   // en fazla ~2 saat (15 sn aralık)
+        let adimlar = null, is = null;
+        if (belirtec && kayit.calistirma) {
+            try {
+                is = await (await github("/runs/" + kayit.calistirma, belirtec)).json();
+                const isler = await (await github("/runs/" + kayit.calistirma + "/jobs", belirtec)).json();
+                adimlar = (isler.jobs || []).flatMap(j => (j.steps || []).filter(s => !/^(Set up|Post |Complete|Run actions)/.test(s.name)));
+            } catch { /* çevrimdışı olabilir; durum dosyasıyla devam */ }
+        }
+        const d = await uretimDurumuOku(kayit.kod);
+        uretimCiz(kutu, d, adimlar);
+        if (d && ["tamamlandi", "basarisiz"].includes(d.durum) && (!is || is.status === "completed")) return d;
+        if (is && is.status === "completed" && !d) {
+            uretimCiz(kutu, {durum: "basarisiz", hata: "Çalıştırma durum kaydı yazmadan bitti (" + is.conclusion + ")"}, adimlar);
+            return null;
+        }
+        await new Promise(t => setTimeout(t, 15000));
+    }
+}
+async function uretimGecmisi() {
+    const kutu = eleman("uretim-gecmis");
+    kutu.replaceChildren();
+    for (const k of uretimKayitlari()) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "ikincil";
+        b.textContent = k.kod + " · " + new Date(k.zaman).toLocaleString("tr-TR");
+        b.addEventListener("click", () => uretimIzle(k, oturumBelirteci || null));
+        kutu.append(b);
+    }
+    if (!kutu.children.length) kutu.textContent = "Henüz üretim yok.";
+}
+eleman("uretim-baslat").addEventListener("click", async () => {
+    if (githubIslemSuruyor) return;
+    const talep = eleman("uretim-talep").value.trim(), sektor = eleman("uretim-sektor").value;
+    const kutu = eleman("uretim-durum");
+    if (talep.length < 10) { kutu.textContent = "Talebi en az 10 karakterle yazın."; return; }
+    githubKilit(true);
+    eleman("uretim-baslat").disabled = true;
+    try {
+        const belirtec = githubBelirteci();
+        const kod = "UR-" + Array.from(crypto.getRandomValues(new Uint8Array(4)), x => x.toString(16).padStart(2, "0")).join("");
+        const paket = await istekPaketi({kip: "urun-uret", talep, sektor, kod}, belirtec, null);
+        const cevap = await github("/workflows/uretim.yml/dispatches", belirtec, {ref: "main", inputs: {paket}});
+        const numara = String((await cevap.json().catch(() => ({}))).workflow_run_id || "");
+        const kayit = {kod, calistirma: calistirmaKodu.test(numara) ? numara : null, zaman: Date.now()};
+        uretimKaydet(kayit);
+        uretimGecmisi();
+        kutu.textContent = "Görev " + kod + " buluta gönderildi. Sayfayı kapatabilirsiniz; Ürün üret ekranından tekrar izleyebilirsiniz.";
+        eleman("uretim-talep").value = "";
+        githubKilit(false);
+        await uretimIzle(kayit, belirtec);
+    } catch (hata) {
+        kutu.textContent = hata.message || "Üretim başlatılamadı.";
+    } finally {
+        githubKilit(false);
+        eleman("uretim-baslat").disabled = false;
+    }
+});

@@ -1,5 +1,5 @@
 "use strict";
-const surum = "ajans-mobil-shell-v4";
+const surum = "ajans-mobil-shell-v5";
 const dosyalar = ["./", "index.html", "app.js?v=3", "app.css?v=3", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 const adresler = new Set(dosyalar.map(ad => new URL(ad, self.registration.scope).href));
 
